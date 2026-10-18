@@ -20,6 +20,7 @@ var _big_map_panel: PanelContainer
 var _minimap_detail: FarmMinimap
 var _minimap_big: FarmMinimap
 var _map_overlay: FarmMapOverlay
+var esc_menu: EscMenu
 var _hint_toast: PanelContainer
 var _hint_toast_label: Label
 var _game: Node
@@ -50,6 +51,7 @@ func _ready() -> void:
 	_build_hint_toast()
 	_build_action_buttons()
 	_build_map_overlay()
+	_build_esc_menu()
 	_info_panel.visible = false
 	_help_panel.visible = false
 	inventory_ui.visible = false
@@ -76,6 +78,26 @@ func is_map_open() -> bool:
 func close_map() -> void:
 	if _map_overlay != null:
 		_map_overlay.close()
+
+
+func is_esc_menu_open() -> bool:
+	return esc_menu != null and esc_menu.is_open()
+
+
+func open_esc_menu(save_path: String, muted: bool, has_save: bool) -> void:
+	if esc_menu == null:
+		return
+	close_map()
+	close_chest()
+	close_nest()
+	close_behavior()
+	close_crafting()
+	esc_menu.open(save_path, muted, has_save)
+
+
+func close_esc_menu() -> void:
+	if esc_menu != null:
+		esc_menu.close()
 
 
 func _on_minimap_clicked(mode: int) -> void:
@@ -531,6 +553,12 @@ func _build_map_overlay() -> void:
 	_map_overlay.visible = false
 
 
+func _build_esc_menu() -> void:
+	esc_menu = EscMenu.new()
+	add_child(esc_menu)
+	esc_menu.visible = false
+
+
 func _build_action_buttons() -> void:
 	_craft_button = _make_action_button("合成 (C)")
 	_craft_button.pressed.connect(_on_craft_button_pressed)
@@ -586,9 +614,6 @@ func _layout_panels() -> void:
 		var button_x := size.x * 0.5 - 66.0
 		_craft_button.position = Vector2(button_x, 24.0)
 		_behavior_button.position = Vector2(button_x, 66.0)
-	if crafting_ui != null:
-		crafting_ui.reset_size()
-		crafting_ui.position = Vector2((size.x - crafting_ui.size.x) * 0.5, 110.0)
 	if _hint_toast != null:
 		_hint_toast.reset_size()
 		_hint_toast.position = Vector2(
@@ -597,6 +622,8 @@ func _layout_panels() -> void:
 		)
 	if _map_overlay != null:
 		_map_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	if esc_menu != null:
+		esc_menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 
 func _make_margin(left: int, top: int, right: int, bottom: int) -> MarginContainer:

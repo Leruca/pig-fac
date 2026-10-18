@@ -66,6 +66,8 @@ func _build_layout() -> void:
 		12,
 		UIStyle.TEXT_MUTED
 	)
+	subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	subtitle.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	content.add_child(subtitle)
 
 	var separator := ColorRect.new()

@@ -87,6 +87,8 @@ var _camera_pan_dragging := false
 var _camera_pan_moved := false
 var _camera_pan_start_screen := Vector2.ZERO
 var _camera_pan_last_screen := Vector2.ZERO
+var _audio_muted := false
+var _save_manager: SaveManager
 ## 已探索的大地图块；键为 Vector2i 块坐标。
 var _visited_blocks: Dictionary = {}
 
@@ -122,6 +124,13 @@ func _ready() -> void:
 	hud.behavior_ui.program_changed.connect(_on_behavior_program_changed)
 	hud.pig_selection_requested.connect(_on_minimap_pig_selected)
 	hud.map_command_requested.connect(_on_map_command_requested)
+	hud.esc_menu.resume_requested.connect(_close_pause_menu)
+	hud.esc_menu.save_requested.connect(_on_pause_save_requested)
+	hud.esc_menu.load_requested.connect(_on_pause_load_requested)
+	hud.esc_menu.volume_toggle_requested.connect(_on_pause_volume_toggle_requested)
+	_save_manager = SaveManager.new()
+	_save_manager.setup(self)
+	apply_audio_muted(false)
 	hud.unbind_pig()
 	hud.setup_map(self)
 	_mark_visible_blocks()
@@ -268,6 +277,9 @@ func _handle_escape() -> void:
 	_camera_pan_pending = false
 	_camera_pan_dragging = false
 	_camera_pan_moved = false
+	if hud.is_esc_menu_open():
+		_close_pause_menu()
+		return
 	if hud.is_map_open():
 		hud.close_map()
 		hud.set_hint(_base_hint())
@@ -285,11 +297,56 @@ func _handle_escape() -> void:
 	elif hud.is_crafting_open():
 		hud.close_crafting()
 		hud.set_hint(_base_hint())
-	elif hud.is_inventory_open():
-		hud.close_inventory()
-		hud.set_hint(_base_hint())
-	elif active_pig != null:
-		_deselect_pig()
+	else:
+		_open_pause_menu()
+
+
+func _open_pause_menu() -> void:
+	_end_right_drag()
+	hud.open_esc_menu(_save_manager.save_path(), _audio_muted, _save_manager.has_save())
+	get_tree().paused = true
+
+
+func _close_pause_menu() -> void:
+	hud.close_esc_menu()
+	get_tree().paused = false
+
+
+func _on_pause_save_requested() -> void:
+	var result := _save_manager.save_game()
+	var ok := bool(result.get("ok", false))
+	hud.esc_menu.set_status(str(result.get("message", "")), not ok)
+	hud.esc_menu.set_has_save(_save_manager.has_save())
+
+
+func _on_pause_load_requested() -> void:
+	var result := _save_manager.load_game()
+	var ok := bool(result.get("ok", false))
+	if not ok:
+		hud.esc_menu.set_status(str(result.get("message", "读取失败。")), true)
+		hud.esc_menu.set_has_save(_save_manager.has_save())
+		return
+	get_tree().paused = false
+	hud.close_esc_menu()
+	hud.set_hint(str(result.get("message", "读取成功。")))
+
+
+func _on_pause_volume_toggle_requested() -> void:
+	apply_audio_muted(not _audio_muted)
+	if hud.esc_menu != null:
+		hud.esc_menu.set_muted(_audio_muted)
+		hud.esc_menu.set_status("音效已%s。" % ("关闭" if _audio_muted else "开启"))
+
+
+func apply_audio_muted(muted: bool) -> void:
+	_audio_muted = muted
+	var master_index := AudioServer.get_bus_index("Master")
+	if master_index >= 0:
+		AudioServer.set_bus_mute(master_index, muted)
+
+
+func is_audio_muted() -> bool:
+	return _audio_muted
 
 
 func _unhandled_input(event: InputEvent) -> void:
