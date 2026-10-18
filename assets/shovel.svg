@@ -1,0 +1,17 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="shaft" x1="25" y1="8" x2="38" y2="32" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#D19A61"/>
+      <stop offset="1" stop-color="#9A6138"/>
+    </linearGradient>
+    <linearGradient id="blade" x1="22" y1="32" x2="43" y2="56" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E3E9E6"/>
+      <stop offset="1" stop-color="#899A98"/>
+    </linearGradient>
+  </defs>
+  <path d="M29 7C30 4 35 4 36 7L37 31L28 32L29 7Z" fill="url(#shaft)" stroke="#5C3B24" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M28 31H37L46 43C47 50 39 57 32 57C25 57 17 50 18 43L28 31Z" fill="url(#blade)" stroke="#3F5150" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M24 37C27 35 32 35 36 38L40 44C38 48 34 50 30 49" stroke="#F2F7F4" stroke-width="2.2" stroke-linecap="round" opacity="0.8"/>
+  <path d="M32 8L33 28" stroke="#EFC591" stroke-width="2" stroke-linecap="round" opacity="0.7"/>
+  <circle cx="32.5" cy="9" r="2.4" fill="#6F472C"/>
+</svg>

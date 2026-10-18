@@ -1,0 +1,17 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="chestwood" x1="8" y1="18" x2="56" y2="55" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#D8A05C"/>
+      <stop offset="0.55" stop-color="#A96A36"/>
+      <stop offset="1" stop-color="#7B4726"/>
+    </linearGradient>
+  </defs>
+  <rect x="7" y="25" width="50" height="31" rx="5" fill="url(#chestwood)" stroke="#4B2B18" stroke-width="3"/>
+  <path d="M7 31C7 18 16 10 32 10C48 10 57 18 57 31" fill="#C88A4B" stroke="#4B2B18" stroke-width="3"/>
+  <path d="M10 29C15 20 22 16 32 16C42 16 49 20 54 29" stroke="#EDC186" stroke-width="2.5" stroke-linecap="round" opacity="0.8"/>
+  <path d="M8 34H56" stroke="#6E4023" stroke-width="2.5"/>
+  <rect x="28" y="29" width="8" height="15" rx="2" fill="#E4C36F" stroke="#4B2B18" stroke-width="2"/>
+  <rect x="30.5" y="34" width="3" height="6" rx="1.2" fill="#75522A"/>
+  <path d="M14 41C17 43 20 43 23 41" stroke="#E3B276" stroke-width="1.8" stroke-linecap="round" opacity="0.7"/>
+  <path d="M43 23C46 25 50 26 53 25" stroke="#F0CB96" stroke-width="1.8" stroke-linecap="round" opacity="0.6"/>
+</svg>

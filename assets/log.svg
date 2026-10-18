@@ -1,0 +1,22 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="logbark" x1="5" y1="8" x2="58" y2="58" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#B57C45"/>
+      <stop offset="0.55" stop-color="#8B5934"/>
+      <stop offset="1" stop-color="#5F3A21"/>
+    </linearGradient>
+    <radialGradient id="logcut" cx="0" cy="0" r="1" gradientTransform="translate(54 32) rotate(90) scale(25 7)">
+      <stop stop-color="#F2D09A"/>
+      <stop offset="0.6" stop-color="#D3A063"/>
+      <stop offset="1" stop-color="#A9703E"/>
+    </radialGradient>
+  </defs>
+  <rect x="3" y="5" width="56" height="54" rx="15" fill="url(#logbark)" stroke="#472A18" stroke-width="3.5"/>
+  <ellipse cx="57" cy="32" rx="4" ry="25" fill="url(#logcut)" stroke="#472A18" stroke-width="3.5"/>
+  <ellipse cx="57" cy="32" rx="2" ry="12" fill="none" stroke="#966236" stroke-width="1.8"/>
+  <path d="M10 14C22 9 37 10 50 14" stroke="#DFAE72" stroke-width="3" stroke-linecap="round" opacity="0.82"/>
+  <path d="M9 50C23 57 39 55 51 48" stroke="#4C2D1A" stroke-width="2.5" stroke-linecap="round" opacity="0.78"/>
+  <path d="M17 22L19 41" stroke="#6A4024" stroke-width="2" stroke-linecap="round" opacity="0.85"/>
+  <path d="M29 18L28 46" stroke="#6A4024" stroke-width="2" stroke-linecap="round" opacity="0.85"/>
+  <path d="M41 19L40 45" stroke="#6A4024" stroke-width="2" stroke-linecap="round" opacity="0.85"/>
+</svg>

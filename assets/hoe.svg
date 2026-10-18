@@ -1,0 +1,19 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="wood" x1="14" y1="54" x2="47" y2="18" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A97143"/>
+      <stop offset="1" stop-color="#D09A61"/>
+    </linearGradient>
+    <linearGradient id="blade" x1="40" y1="9" x2="56" y2="26" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#D9E0DF"/>
+      <stop offset="1" stop-color="#87999A"/>
+    </linearGradient>
+  </defs>
+  <path d="M14 55L46 21" stroke="#5E3A24" stroke-width="9" stroke-linecap="round"/>
+  <path d="M15 53L45 22" stroke="url(#wood)" stroke-width="5.5" stroke-linecap="round"/>
+  <path d="M19 48L22 51" stroke="#F0C791" stroke-width="2" stroke-linecap="round" opacity="0.75"/>
+  <path d="M38 13C41 8 53 7 57 11L55 27C49 29 41 26 38 22L38 13Z" fill="url(#blade)" stroke="#3D4A4B" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M43 13C47 11 52 11 55 13" stroke="#F3F8F7" stroke-width="2.3" stroke-linecap="round" opacity="0.85"/>
+  <path d="M41 24C45 26 51 26 54 24" stroke="#596B6C" stroke-width="1.8" stroke-linecap="round" opacity="0.8"/>
+  <circle cx="44" cy="15" r="1.4" fill="#6E7D7E"/>
+</svg>

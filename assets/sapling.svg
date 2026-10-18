@@ -1,0 +1,19 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="stem" x1="30" y1="53" x2="35" y2="21" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8B5F38"/>
+      <stop offset="1" stop-color="#BB8750"/>
+    </linearGradient>
+    <linearGradient id="leaf" x1="20" y1="18" x2="44" y2="43" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8BCB5D"/>
+      <stop offset="1" stop-color="#4E9A3B"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="32" cy="55" rx="22" ry="6" fill="#5A3B23" opacity="0.18"/>
+  <path d="M31 54C32 45 32 33 33 24" stroke="#5A3A24" stroke-width="5" stroke-linecap="round"/>
+  <path d="M31 53C32 44 32 34 33 26" stroke="url(#stem)" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M33 38C24 35 17 36 13 42C21 48 29 46 33 38Z" fill="url(#leaf)" stroke="#376B2D" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M33 32C42 26 52 28 56 34C49 41 40 41 33 32Z" fill="#6DB94B" stroke="#376B2D" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M33 25C28 18 29 11 35 7C41 13 41 21 33 25Z" fill="#8BCB5D" stroke="#376B2D" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M32 50C35 48 39 48 42 50" stroke="#5A3A24" stroke-width="2.2" stroke-linecap="round" opacity="0.7"/>
+</svg>

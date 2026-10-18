@@ -1,0 +1,21 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="can" x1="22" y1="24" x2="44" y2="54" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7DE0DE"/>
+      <stop offset="1" stop-color="#3CA6B8"/>
+    </linearGradient>
+    <linearGradient id="spout" x1="6" y1="35" x2="25" y2="42" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#9BE9E3"/>
+      <stop offset="1" stop-color="#4DB9C2"/>
+    </linearGradient>
+  </defs>
+  <path d="M27 18C27 12 38 12 38 18" stroke="#24545C" stroke-width="4" stroke-linecap="round"/>
+  <path d="M23 27C23 21 29 17 36 18C44 19 47 25 46 34L44 47C43 52 39 55 33 55C27 55 22 51 21 46L23 27Z" fill="url(#can)" stroke="#24545C" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M22 42L7 34L5 39L19 49L22 42Z" fill="url(#spout)" stroke="#24545C" stroke-width="3" stroke-linejoin="round"/>
+  <ellipse cx="34" cy="20" rx="10" ry="4" fill="#2E7D8B" stroke="#24545C" stroke-width="2.5"/>
+  <path d="M26 37C30 34 38 34 42 37" stroke="#D5FFFA" stroke-width="2.5" stroke-linecap="round" opacity="0.8"/>
+  <path d="M32 45C35 43 40 43 42 45" stroke="#2E8F9C" stroke-width="2" stroke-linecap="round" opacity="0.8"/>
+  <path d="M51 14L54 8L57 14L63 17L57 20L54 26L51 20L45 17L51 14Z" fill="#FFE18A" stroke="#C9932E" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="M13 15L15 11L17 15L21 17L17 19L15 23L13 19L9 17L13 15Z" fill="#BFF7EF"/>
+  <circle cx="49" cy="36" r="2" fill="#BFF7EF"/>
+</svg>

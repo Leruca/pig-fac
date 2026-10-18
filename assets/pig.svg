@@ -1,0 +1,47 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="body" x1="42" y1="35" x2="86" y2="108" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFC0D2"/>
+      <stop offset="1" stop-color="#F58EAF"/>
+    </linearGradient>
+    <linearGradient id="ear" x1="30" y1="26" x2="52" y2="52" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F9A9C0"/>
+      <stop offset="1" stop-color="#EF84A6"/>
+    </linearGradient>
+    <radialGradient id="cheek" cx="0" cy="0" r="1" gradientTransform="translate(0 0) rotate(90) scale(1)">
+      <stop stop-color="#FF6E9D" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#FF6E9D" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- ears -->
+  <path d="M34 49C25 38 22 24 28 21C35 18 47 28 51 40L34 49Z" fill="url(#ear)" stroke="#7A3F51" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M94 49C103 38 106 24 100 21C93 18 81 28 77 40L94 49Z" fill="url(#ear)" stroke="#7A3F51" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M34 38C30 32 29 28 31 27C34 26 39 31 41 37L34 38Z" fill="#E2688C"/>
+  <path d="M94 38C98 32 99 28 97 27C94 26 89 31 87 37L94 38Z" fill="#E2688C"/>
+
+  <!-- head -->
+  <path d="M64 27C92 27 108 46 108 70C108 95 90 109 64 109C38 109 20 95 20 70C20 46 36 27 64 27Z" fill="url(#body)" stroke="#7A3F51" stroke-width="4.5"/>
+
+  <!-- forehead highlight -->
+  <path d="M45 40C49 35 55 32 62 31" stroke="#FFDCE7" stroke-width="5" stroke-linecap="round" opacity="0.9"/>
+
+  <!-- cheeks -->
+  <circle cx="37" cy="80" r="13" fill="url(#cheek)"/>
+  <circle cx="91" cy="80" r="13" fill="url(#cheek)"/>
+
+  <!-- eyes -->
+  <ellipse cx="46" cy="60" rx="5.5" ry="6.5" fill="#492832"/>
+  <ellipse cx="82" cy="60" rx="5.5" ry="6.5" fill="#492832"/>
+  <circle cx="48" cy="58" r="2" fill="#FFF8FA"/>
+  <circle cx="84" cy="58" r="2" fill="#FFF8FA"/>
+
+  <!-- snout -->
+  <ellipse cx="64" cy="82" rx="27" ry="19" fill="#FF9DB8" stroke="#7A3F51" stroke-width="4"/>
+  <ellipse cx="54" cy="82" rx="4" ry="6.5" fill="#A84565"/>
+  <ellipse cx="74" cy="82" rx="4" ry="6.5" fill="#A84565"/>
+  <path d="M56 92C60 95 68 95 72 92" stroke="#7A3F51" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- tiny chin -->
+  <path d="M55 103C60 106 68 106 73 103" stroke="#D8678A" stroke-width="3" stroke-linecap="round" opacity="0.8"/>
+</svg>

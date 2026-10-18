@@ -1,0 +1,15 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="potato" x1="18" y1="12" x2="48" y2="54" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E4B875"/>
+      <stop offset="0.55" stop-color="#CE9552"/>
+      <stop offset="1" stop-color="#B77A3F"/>
+    </linearGradient>
+  </defs>
+  <path d="M17 20C22 9 42 7 50 17C58 27 58 44 49 52C40 60 23 57 16 47C10 38 11 30 17 20Z" fill="url(#potato)" stroke="#68452F" stroke-width="3.5" stroke-linejoin="round"/>
+  <path d="M23 20C27 15 34 13 39 15" stroke="#F5D9A8" stroke-width="3" stroke-linecap="round" opacity="0.8"/>
+  <ellipse cx="27" cy="39" rx="3" ry="2.3" fill="#8D613D" transform="rotate(-24 27 39)"/>
+  <ellipse cx="43" cy="31" rx="2.5" ry="2" fill="#8D613D" transform="rotate(18 43 31)"/>
+  <ellipse cx="39" cy="47" rx="2.2" ry="1.8" fill="#8D613D" transform="rotate(-10 39 47)"/>
+  <path d="M17 25C16 27 16 29 16 31" stroke="#8D613D" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+</svg>

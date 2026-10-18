@@ -1,0 +1,21 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="root" x1="24" y1="22" x2="42" y2="55" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFB451"/>
+      <stop offset="0.55" stop-color="#F28B32"/>
+      <stop offset="1" stop-color="#D96A24"/>
+    </linearGradient>
+    <linearGradient id="leaf" x1="31" y1="20" x2="34" y2="4" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5EA445"/>
+      <stop offset="1" stop-color="#8BCB61"/>
+    </linearGradient>
+  </defs>
+  <path d="M31 24C22 20 18 9 20 4C28 6 34 13 34 21" fill="url(#leaf)" stroke="#355D2A" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M33 22C33 12 38 5 45 4C47 12 42 20 34 24" fill="url(#leaf)" stroke="#355D2A" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M32 23C28 14 27 8 29 3C34 7 37 15 36 22" fill="#76B950" stroke="#355D2A" stroke-width="2.2" stroke-linejoin="round"/>
+  <path d="M22 26C27 19 42 19 46 27C48 35 38 50 32 57C25 49 19 36 22 26Z" fill="url(#root)" stroke="#704024" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M26 29C29 25 36 24 41 27" stroke="#FFD392" stroke-width="2.8" stroke-linecap="round" opacity="0.85"/>
+  <path d="M27 38L34 35" stroke="#C65F22" stroke-width="2" stroke-linecap="round" opacity="0.75"/>
+  <path d="M30 46L36 43" stroke="#C65F22" stroke-width="2" stroke-linecap="round" opacity="0.75"/>
+  <path d="M31 52L35 50" stroke="#C65F22" stroke-width="1.8" stroke-linecap="round" opacity="0.7"/>
+</svg>
