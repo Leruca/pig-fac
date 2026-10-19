@@ -102,7 +102,7 @@ var _materialized: Dictionary = {}
 ## 区块 -> {树根: true}：物化时登记的树根；卸载某块只会解除它自己的引用。
 var _tree_refs: Dictionary = {}
 var _block_multimesh: MultiMeshInstance2D
-var _ore_multimesh: MultiMeshInstance2D
+var _ore_multimeshes: Dictionary = {}
 var _blocks_dirty := false
 var _ores_dirty := false
 ## 被移除/采空的程序生成物（运行时镜像；落盘时写进 overrides）。物化时据此跳过。
@@ -148,7 +148,54 @@ func _ready() -> void:
 
 func _setup_visual_multimeshes() -> void:
 	_block_multimesh = _make_multimesh_instance(Vector2(float(cell_size), float(cell_size)), -2)
-	_ore_multimesh = _make_multimesh_instance(Vector2(float(cell_size) * 0.46, float(cell_size) * 0.46), -1)
+	_ore_multimeshes.clear()
+	var ore_textures := {
+		1: "res://assets/copper_ore.svg",
+		2: "res://assets/iron_ore.svg",
+		3: "res://assets/gold_ore.svg",
+		4: "res://assets/coal.svg",
+		5: "res://assets/stone.svg",
+	}
+	for ore_id in ore_textures.keys():
+		var texture := load(str(ore_textures[ore_id])) as Texture2D
+		var instance := _make_textured_multimesh_instance(
+			Vector2(float(cell_size) * 0.92, float(cell_size) * 0.92),
+			-1,
+			texture
+		)
+		_ore_multimeshes[int(ore_id)] = instance
+
+
+func _make_textured_multimesh_instance(
+	quad_size: Vector2,
+	z: int,
+	texture: Texture2D
+) -> MultiMeshInstance2D:
+	var instance := MultiMeshInstance2D.new()
+	var multimesh := MultiMesh.new()
+	multimesh.transform_format = MultiMesh.TRANSFORM_2D
+	multimesh.use_colors = false
+	var quad := QuadMesh.new()
+	quad.size = quad_size
+	var shader := Shader.new()
+	shader.code = """
+shader_type canvas_item;
+uniform sampler2D ore_texture : source_color;
+void fragment() {
+	vec4 tex = texture(ore_texture, UV);
+	COLOR = tex;
+}
+"""
+	var material := ShaderMaterial.new()
+	material.shader = shader
+	material.set_shader_parameter("ore_texture", texture)
+	quad.material = material
+	instance.material = material
+	multimesh.mesh = quad
+	instance.multimesh = multimesh
+	instance.z_index = z
+	add_child(instance)
+	return instance
 
 
 func _make_multimesh_instance(quad_size: Vector2, z: int) -> MultiMeshInstance2D:
@@ -166,7 +213,7 @@ func _make_multimesh_instance(quad_size: Vector2, z: int) -> MultiMeshInstance2D
 
 
 func _rebuild_visual_multimeshes() -> void:
-	if _block_multimesh == null or _ore_multimesh == null:
+	if _block_multimesh == null or _ore_multimeshes.is_empty():
 		return
 	var block_mm := _block_multimesh.multimesh
 	block_mm.instance_count = placed_blocks.size()
@@ -181,21 +228,31 @@ func _rebuild_visual_multimeshes() -> void:
 		block_mm.set_instance_color(block_index, color)
 		block_index += 1
 
-	var ore_mm := _ore_multimesh.multimesh
-	ore_mm.instance_count = ores.size()
-	var ore_index := 0
+	var buckets: Dictionary = {}
 	for cell_value in ores.keys():
 		var cell: Vector2i = cell_value
 		var ore: Dictionary = ores[cell]
 		var ore_id := int(ore.get("ore_id", 0))
-		var amount := int(ore.get("amount", 1))
-		var scale := 0.55 + minf(0.45, float(amount) / 14000.0)
-		var ore_transform := Transform2D(PI * 0.25, Vector2.ZERO)
-		ore_transform = ore_transform.scaled_local(Vector2(scale, scale))
-		ore_transform.origin = Vector2(cell) * float(cell_size) + Vector2.ONE * (float(cell_size) * 0.5)
-		ore_mm.set_instance_transform_2d(ore_index, ore_transform)
-		ore_mm.set_instance_color(ore_index, ORE_COLORS.get(ore_id, Color("#B0B0B0")))
-		ore_index += 1
+		if not buckets.has(ore_id):
+			buckets[ore_id] = []
+		buckets[ore_id].append(cell)
+
+	for ore_id in _ore_multimeshes.keys():
+		var ore_mm: MultiMesh = _ore_multimeshes[ore_id].multimesh
+		var cells: Array = buckets.get(ore_id, [])
+		ore_mm.instance_count = cells.size()
+		for index in cells.size():
+			var cell: Vector2i = cells[index]
+			var ore: Dictionary = ores[cell]
+			var amount := int(ore.get("amount", 1))
+			var roll := SeedSystem.hash2(worldgen_seed, 7127 + ore_id, cell.x, cell.y)
+			var amount_scale := minf(0.22, float(amount) / 90000.0)
+			var scale := 0.90 + float(roll % 17) * 0.008 + amount_scale
+			var rotation := (float(int(SeedSystem.ushr(roll, 7) % 17)) - 8.0) * 0.018
+			var ore_transform := Transform2D(rotation, Vector2.ZERO)
+			ore_transform = ore_transform.scaled_local(Vector2(scale, scale))
+			ore_transform.origin = Vector2(cell) * float(cell_size) + Vector2.ONE * (float(cell_size) * 0.5)
+			ore_mm.set_instance_transform_2d(index, ore_transform)
 
 
 func _process(delta: float) -> void:
@@ -1279,7 +1336,25 @@ func _draw() -> void:
 		)
 		# 树冠视觉上略微伸进相邻格子，树根仍严格占据 3 × 3 的碰撞范围。
 		if _tree_texture != null:
-			draw_texture_rect(_tree_texture, tree_rect, false)
+			var roll := SeedSystem.hash2(worldgen_seed, 2243, root.x, root.y)
+			var scale := 0.94 + float(SeedSystem.ushr(roll, 3) % 13) * 0.01
+			var mirror := -1.0 if (SeedSystem.ushr(roll, 11) & 1) != 0 else 1.0
+			var lean := (float(int(SeedSystem.ushr(roll, 17) % 9)) - 4.0) * 0.008
+			var tint := Color(
+				0.92 + float(SeedSystem.ushr(roll, 21) % 9) * 0.012,
+				1.0,
+				0.90 + float(SeedSystem.ushr(roll, 25) % 9) * 0.010,
+				1.0
+			)
+			var center := tree_rect.get_center()
+			draw_set_transform(center, lean, Vector2(scale * mirror, scale))
+			draw_texture_rect(
+				_tree_texture,
+				Rect2(-tree_rect.size * 0.5, tree_rect.size),
+				false,
+				tint
+			)
+			draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		elif not tree_rect.intersects(_visible_rect):
 			continue
 
@@ -1418,7 +1493,9 @@ func _draw_ore(cell: Vector2i, ore_id: int, amount: int) -> void:
 func _draw_natural_block(cell: Vector2i, kind: int) -> void:
 	var origin := Vector2(cell) * float(cell_size)
 	var center := origin + Vector2.ONE * (float(cell_size) * 0.5)
-	var half_width := 36.0
+	var roll := SeedSystem.hash2(worldgen_seed, 4409, cell.x, cell.y)
+	var half_width := 33.0 + float(SeedSystem.ushr(roll, 3) % 7)
+	var lean := (float(int(SeedSystem.ushr(roll, 9) % 9)) - 4.0) * 0.8
 	draw_set_transform(center + Vector2(0.0, 12.0), 0.0, Vector2(1.0, 0.34))
 	draw_circle(Vector2.ZERO, half_width * 0.72, Color(0.08, 0.12, 0.05, 0.26))
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
@@ -1431,47 +1508,68 @@ func _draw_natural_block(cell: Vector2i, kind: int) -> void:
 
 	var base_y := center.y + 15.0
 	var peak_y := center.y - (30.0 if kind == ChunkData.KIND_STONE else 22.0)
+	peak_y += float(int(SeedSystem.ushr(roll, 13) % 7)) - 3.0
 	var points := PackedVector2Array([
 		Vector2(center.x - half_width, base_y),
-		Vector2(center.x - half_width * 0.58, peak_y + 14.0),
-		Vector2(center.x - half_width * 0.18, peak_y),
-		Vector2(center.x + half_width * 0.23, peak_y + 8.0),
-		Vector2(center.x + half_width * 0.62, peak_y + 19.0),
+		Vector2(center.x - half_width * 0.58 + lean, peak_y + 14.0),
+		Vector2(center.x - half_width * 0.18 + lean, peak_y),
+		Vector2(center.x + half_width * 0.23 + lean, peak_y + 8.0),
+		Vector2(center.x + half_width * 0.62 + lean, peak_y + 19.0),
 		Vector2(center.x + half_width, base_y),
 	])
+	var body_fill := Color("#6B7078") if kind == ChunkData.KIND_STONE else ROCK_FILL
+	body_fill = body_fill.lerp(
+		Color("#7B8087") if kind == ChunkData.KIND_STONE else Color("#9A9D92"),
+		0.10 + float(SeedSystem.ushr(roll, 17) % 9) * 0.015
+	)
 	if kind == ChunkData.KIND_STONE:
-		draw_colored_polygon(points, Color("#6B7078"))
+		draw_colored_polygon(points, body_fill)
 		var lit := PackedVector2Array([
-			Vector2(center.x - half_width * 0.18, peak_y),
-			Vector2(center.x + half_width * 0.23, peak_y + 8.0),
+			Vector2(center.x - half_width * 0.18 + lean, peak_y),
+			Vector2(center.x + half_width * 0.23 + lean, peak_y + 8.0),
 			Vector2(center.x + half_width * 0.10, base_y - 4.0),
 			Vector2(center.x - half_width * 0.30, base_y - 8.0),
 		])
-		draw_colored_polygon(lit, Color("#8E959E"))
+		draw_colored_polygon(lit, Color("#8E959E").lerp(Color("#A8AEB4"), 0.2))
 		draw_polyline(points, Color("#3C4047"), 2.2, true)
-		# 石头矿脉：山体里露出的浅色石脉。
+		# 石头矿脉：山体里露出的浅色石脉，位置随 cell 轻微变化。
+		var vein_shift := float(int(SeedSystem.ushr(roll, 21) % 9)) - 4.0
 		draw_line(
-			Vector2(center.x - 14.0, base_y - 6.0),
-			Vector2(center.x + 12.0, peak_y + 17.0),
+			Vector2(center.x - 14.0 + vein_shift, base_y - 6.0),
+			Vector2(center.x + 12.0 + lean, peak_y + 17.0),
 			Color("#D5D8D4"),
 			2.4
 		)
 		draw_line(
-			Vector2(center.x - 8.0, base_y - 9.0),
-			Vector2(center.x + 2.0, peak_y + 20.0),
+			Vector2(center.x - 8.0 + vein_shift, base_y - 9.0),
+			Vector2(center.x + 2.0 + lean, peak_y + 20.0),
 			Color("#B7BCC0"),
 			1.6
 		)
 	else:
-		draw_colored_polygon(points, ROCK_FILL)
+		draw_colored_polygon(points, body_fill)
 		var rock_lit := PackedVector2Array([
-			Vector2(center.x - half_width * 0.18, peak_y),
-			Vector2(center.x + half_width * 0.23, peak_y + 8.0),
+			Vector2(center.x - half_width * 0.18 + lean, peak_y),
+			Vector2(center.x + half_width * 0.23 + lean, peak_y + 8.0),
 			Vector2(center.x + half_width * 0.12, base_y - 5.0),
 			Vector2(center.x - half_width * 0.28, base_y - 8.0),
 		])
-		draw_colored_polygon(rock_lit, ROCK_LIGHT)
+		draw_colored_polygon(rock_lit, ROCK_LIGHT.lerp(Color("#B8B5A5"), 0.22))
 		draw_polyline(points, ROCK_DARK, 2.0, true)
+		# 普通石头的小裂纹/底部碎石，每块略有不同。
+		var crack_x := center.x - 12.0 + float(SeedSystem.ushr(roll, 25) % 13)
+		draw_line(
+			Vector2(crack_x, base_y - 10.0),
+			Vector2(crack_x + 7.0, base_y - 3.0),
+			Color(0.38, 0.40, 0.37, 0.55),
+			1.2
+		)
+		if (roll & 3) != 0:
+			draw_circle(
+				Vector2(center.x + half_width - 3.0, base_y - 3.0),
+				2.0 + float(SeedSystem.ushr(roll, 27) % 3) * 0.5,
+				Color(0.48, 0.50, 0.46, 0.75)
+			)
 
 
 # ===== 既有绘制工具（木板/栅栏/树苗）==================================

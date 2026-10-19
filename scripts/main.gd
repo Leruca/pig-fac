@@ -18,6 +18,8 @@ const TREE_WOOD_MIN := 8
 const TREE_WOOD_MAX := 11
 const TREE_SAPLING_MIN := 2
 const TREE_SAPLING_MAX := 3
+const BUSH_STICK_MIN := 1
+const BUSH_STICK_MAX := 3
 const PIG_SCENE := preload("res://scenes/pig.tscn")
 
 const PATH_DIRECTIONS := [
@@ -1342,10 +1344,18 @@ func _use_hammer(cell: Vector2i, actor: Pig = null) -> void:
 			if user.inventory.get_free_capacity("stone") < expected_yield:
 				hud.set_hint("背包空间不足：这一下会掉落石头 ×%d。" % expected_yield)
 				return
+		var bush_sticks := 0
+		if kind == ChunkData.KIND_BUSH and hits_left <= 1:
+			bush_sticks = randi_range(BUSH_STICK_MIN, BUSH_STICK_MAX)
+			if user.inventory.get_free_capacity("stick") < bush_sticks:
+				hud.set_hint("背包空间不足：敲碎灌木会掉落木棍 ×%d。" % bush_sticks)
+				return
 		var hit_block := world_objects.hit_natural_block(cell)
 		var stone_yield := int(hit_block.get("stone_yield", 0))
 		if stone_yield > 0:
 			user.inventory.add_item("stone", stone_yield)
+		if bush_sticks > 0:
+			user.inventory.add_item("stick", bush_sticks)
 		_play_sfx(hammer_sound, 0.92, 1.08, cell)
 		var block_name := "石头矿脉" if kind == ChunkData.KIND_STONE else (
 			"灌木" if kind == ChunkData.KIND_BUSH else "石头"
@@ -1353,6 +1363,8 @@ func _use_hammer(cell: Vector2i, actor: Pig = null) -> void:
 		if bool(hit_block.get("destroyed", false)):
 			if stone_yield > 0:
 				hud.set_hint("采空了%s，获得石头 ×%d。" % [block_name, stone_yield])
+			elif bush_sticks > 0:
+				hud.set_hint("敲碎了%s，获得木棍 ×%d。" % [block_name, bush_sticks])
 			else:
 				hud.set_hint("敲碎了%s。" % block_name)
 		else:

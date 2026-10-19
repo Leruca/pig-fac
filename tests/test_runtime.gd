@@ -27,6 +27,7 @@ func _ready() -> void:
 	_test_pig_capture_and_place()
 	_test_map_zoom()
 	_test_fps_monitor()
+	_test_bush_sticks()
 
 	if _failures.is_empty():
 		print("RUNTIME TESTS PASSED: 3 pigs, pig cell blocking, collect/place, nest RGB, all blocks, UI.")
@@ -463,3 +464,17 @@ func _test_fps_monitor() -> void:
 	_check(not _main.hud.is_fps_visible(), "FPS monitor should hide when disabled")
 	_main.apply_fps_visible(true)
 	_check(_main.hud.is_fps_visible(), "FPS monitor should show again when enabled")
+
+
+func _test_bush_sticks() -> void:
+	var pig: Pig = _main.pigs[0]
+	var base: Vector2i = _main.grid.world_to_cell(pig.global_position)
+	var cell: Vector2i = base + Vector2i(0, 4)
+	while _main.world_objects.is_blocked(cell):
+		cell.y += 1
+	_main.world_objects.place_natural_block(cell, ChunkData.KIND_BUSH, 1)
+	var before := pig.inventory.get_total_count("stick")
+	_main._use_hammer(cell, pig)
+	var after := pig.inventory.get_total_count("stick")
+	_check(after > before, "destroying a bush should drop at least one stick")
+	_check(not _main.world_objects.has_natural_block(cell), "destroyed bush should disappear")

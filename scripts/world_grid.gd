@@ -24,12 +24,27 @@ var worldgen_config: WorldGenConfig
 var seed_value: int = 0
 
 var _decor_cache: Dictionary = {}
+var _terrain_noise: NoiseTexture2D
 var _last_canvas_transform := Transform2D.IDENTITY
 var _canvas_transform_ready := false
 
 
 func _ready() -> void:
 	z_index = -20
+	texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+
+
+func _make_terrain_noise() -> void:
+	var noise := FastNoiseLite.new()
+	noise.seed = seed_value
+	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	noise.frequency = 0.09
+	noise.fractal_octaves = 3
+	_terrain_noise = NoiseTexture2D.new()
+	_terrain_noise.width = 256
+	_terrain_noise.height = 256
+	_terrain_noise.seamless = true
+	_terrain_noise.noise = noise
 
 
 func setup(manager: ChunkManager, config: WorldGenConfig, seed_in: int) -> void:
@@ -37,6 +52,7 @@ func setup(manager: ChunkManager, config: WorldGenConfig, seed_in: int) -> void:
 	worldgen_config = config
 	seed_value = seed_in
 	_decor_cache.clear()
+	_make_terrain_noise()
 	queue_redraw()
 
 
@@ -104,6 +120,15 @@ func _draw() -> void:
 				_draw_water_ripple(cell, cell_rect)
 			elif terrain_type >= 0:
 				_draw_cell_decor(cell, cell_rect)
+
+	# 草地/泥土/沙地的弱随机纹理：一层低透明度、按 seed 生成的可平铺噪声。
+	if _terrain_noise != null:
+		draw_texture_rect(
+			_terrain_noise,
+			Rect2(min_world, max_world - min_world),
+			true,
+			Color(0.10, 0.09, 0.06, 0.055)
+		)
 
 	# 细网格线。
 	for x in range(first_cell.x, last_cell.x + 2):
