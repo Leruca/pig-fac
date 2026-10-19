@@ -981,7 +981,8 @@ func _draw() -> void:
 	# 树冠/树苗会伸出格子 20px，绘制裁剪框外扩一格。
 	_visible_rect = Rect2(min_point, max_point - min_point).grow(float(cell_size))
 
-	for root in tree_roots:
+	for root_value in _visible_tree_roots():
+		var root: Vector2i = root_value
 		if not _rect_intersects(root, TREE_SIZE):
 			continue
 		var tree_rect := Rect2(
@@ -1048,6 +1049,32 @@ func _draw() -> void:
 		if not _cell_visible(cell):
 			continue
 		_draw_fence(cell)
+
+
+func _visible_tree_roots() -> Array[Vector2i]:
+	var roots: Dictionary = {}
+	if _tree_index.is_empty():
+		return []
+	var first := bucket_of(_world_to_cell_unclamped(_visible_rect.position)) - Vector2i.ONE
+	var last := bucket_of(_world_to_cell_unclamped(_visible_rect.end)) + Vector2i.ONE
+	for by in range(first.y, last.y + 1):
+		for bx in range(first.x, last.x + 1):
+			var bucket: Variant = _tree_index.get(Vector2i(bx, by))
+			if bucket is Dictionary:
+				for root in bucket.keys():
+					roots[root] = true
+	var out: Array[Vector2i] = []
+	for root in roots.keys():
+		var root_value: Vector2i = root
+		out.append(root_value)
+	return out
+
+
+func _world_to_cell_unclamped(world_position: Vector2) -> Vector2i:
+	return Vector2i(
+		floori(world_position.x / float(cell_size)),
+		floori(world_position.y / float(cell_size))
+	)
 
 
 func _cell_visible(cell: Vector2i) -> bool:

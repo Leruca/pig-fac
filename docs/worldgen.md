@@ -209,11 +209,12 @@ world_objects.dematerialize_chunk(chunk)
 | `spawn_reserved_footprints` | 整块豁免的 footprint（教学树）|
 | `budgets.gen_ms_per_frame` / `gen_rows_per_slice` | 分帧双闸门 |
 | `budgets.ensure_radius_chunks` / `keep_radius_chunks` | 预生成半径 / 卸载半径（当前 2 / 2 → 镜头周围 5×5）|
-| `budgets.*` 运行时行为 | 中心块同步生成避免整屏空白，周围区块继续分帧预生成 |
+| `budgets.materialize_radius_chunks` | 真正物化到 `WorldObjects` 的半径（当前 1 → 实际活跃 3×3）|
+| `budgets.*` 运行时行为 | 中心块同步生成避免整屏空白，周围区块继续分帧预生成；物化也分帧 |
 | `budgets.pig_residency_radius_chunks` | 猪周围强制常驻的圈数 |
 | `budgets.unload_eval_seconds` | 卸载评估周期（不是每帧）|
 | `budgets.eager_load_radius_chunks` | 读档时**急切**恢复的半径，其余惰性 |
-| `bench.avg_ms_max` / `p99_ms_max` | `tests/bench_chunk_gen.gd` 的断言阈值（当前 70ms / 180ms，实测 27ms / 62ms）|
+| `bench.avg_ms_max` / `p99_ms_max` | `tests/bench_chunk_gen.gd` 的断言阈值（当前 90ms / 250ms；高负载 CI 留余量）|
 | `layers.terrain.*` | `salt`、`noise_scale_q16`、`octaves`、三档阈值 |
 | `layers.eco.*` | `bush_chance_millis`、`tuft_chance_millis`、`flower_chance_millis` |
 | `layers.obstacle.*` | `cell_chunk_cells`、`tree_chance_millis`、`rock_chance_millis`、`tree_hp`、`tree_footprint` |

@@ -24,6 +24,9 @@ var gen_ms_per_frame: float = 8.0
 var gen_rows_per_slice: int = 32
 var ensure_radius_chunks: int = 1
 var keep_radius_chunks: int = 2
+## 5×5 只保证数据预生成；只有这个半径内的区块物化到 WorldObjects，
+## 避免 25×255² 的树/矿全部进入绘制与索引。
+var materialize_radius_chunks: int = 1
 var pig_residency_radius_chunks: int = 1
 var unload_eval_seconds: float = 1.0
 var eager_load_radius_chunks: int = 1
@@ -113,6 +116,11 @@ func apply_dict(source: Dictionary) -> void:
 	gen_rows_per_slice = maxi(1, int(budgets.get("gen_rows_per_slice", gen_rows_per_slice)))
 	ensure_radius_chunks = maxi(0, int(budgets.get("ensure_radius_chunks", ensure_radius_chunks)))
 	keep_radius_chunks = maxi(ensure_radius_chunks, int(budgets.get("keep_radius_chunks", keep_radius_chunks)))
+	materialize_radius_chunks = clampi(
+		int(budgets.get("materialize_radius_chunks", materialize_radius_chunks)),
+		0,
+		ensure_radius_chunks
+	)
 	pig_residency_radius_chunks = maxi(0, int(budgets.get("pig_residency_radius_chunks", pig_residency_radius_chunks)))
 	unload_eval_seconds = maxf(0.1, float(budgets.get("unload_eval_seconds", unload_eval_seconds)))
 	eager_load_radius_chunks = maxi(0, int(budgets.get("eager_load_radius_chunks", eager_load_radius_chunks)))

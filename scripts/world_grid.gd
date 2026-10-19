@@ -80,13 +80,20 @@ func _draw() -> void:
 
 	# 地形底色 + 种子化的草丛/小花。地形信息只从已加载区块读取（未加载 = 未知底色），
 	# 装饰只依赖 (seed, salt, 坐标)，所以镜头移动时不会跳变。
+	# 草地是绝对多数：先画一整块草地底色，只对非草地/未加载格补矩形，
+	# 把每帧 1000+ 次 draw_rect 降到几百次（5×5 预生成时尤其明显）。
+	draw_rect(
+		Rect2(min_world, max_world - min_world),
+		GRASS_A,
+		true
+	)
 	for y in range(first_cell.y, last_cell.y + 1):
 		for x in range(first_cell.x, last_cell.x + 1):
 			var cell := Vector2i(x, y)
 			var cell_rect := Rect2(Vector2(x, y) * cell_extent, Vector2.ONE * cell_extent)
 			var terrain_type := _terrain_of(cell)
-			var base := _base_color(cell, terrain_type)
-			draw_rect(cell_rect, base, true)
+			if terrain_type < 0 or terrain_type != TerrainTypes.GRASS:
+				draw_rect(cell_rect, _base_color(cell, terrain_type), true)
 			if terrain_type == TerrainTypes.WATER:
 				_draw_water_ripple(cell, cell_rect)
 			elif terrain_type >= 0:

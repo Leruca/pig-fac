@@ -35,6 +35,7 @@ var _active_job: Variant = null
 var _active_materialize := false
 
 var _dirty_chunks: Dictionary = {}
+var _materialize_queue: Array[Vector2i] = []
 var _last_center := Vector2i(2147483647, 2147483647)
 var _unload_clock := 0.0
 var _seed_value: int = 0
@@ -92,6 +93,7 @@ func _process(delta: float) -> void:
 	if not _ready:
 		return
 	_drive_generation()
+	_process_materialize_queue()
 	_unload_clock += delta
 	if _unload_clock >= config.unload_eval_seconds:
 		_unload_clock = 0.0
@@ -173,10 +175,61 @@ func ensure_radius(center_cell: Vector2i) -> void:
 	if center == _last_center:
 		return
 	_last_center = center
+	# 镜头换块时丢弃旧镜头排队的待生成区块，避免旧队列把新 5×5 饿死；
+	# 读档待恢复块必须保留，否则远处存档会永远不恢复。
+	var preserved: Array[Vector2i] = []
+	for queued in _queue:
+		if _pending_restore.has(queued):
+			preserved.append(queued)
+	_queue.clear()
+	for queued in preserved:
+		_queue.append(queued)
 	# 当前镜头所在块必须立刻可用，避免镜头跨块时整屏"未生成"底色；
 	# 周围 5×5（ensure_radius_chunks=2）继续走分帧队列预生成。
 	ensure_chunk_now(center)
 	_enqueue_around(center, config.ensure_radius_chunks)
+	_materialize_queue.clear()
+	_queue_materialize_around(center, config.materialize_radius_chunks)
+	_dematerialize_outside(center, config.materialize_radius_chunks)
+
+
+## 5×5 的数据在 _chunks 里，但只把镜头附近 materialize_radius_chunks 物化到
+## WorldObjects；物化也分帧，避免跨区块时一次把 9 块的树/矿塞进主线程。
+func _queue_materialize_around(center: Vector2i, radius: int) -> void:
+	for chunk_value in _chunks.keys():
+		var chunk: Vector2i = chunk_value
+		if maxi(absi(chunk.x - center.x), absi(chunk.y - center.y)) > radius:
+			continue
+		if bool(_chunks[chunk]["materialized"]):
+			continue
+		if not _materialize_queue.has(chunk):
+			_materialize_queue.append(chunk)
+
+
+func _process_materialize_queue() -> void:
+	if _materialize_queue.is_empty():
+		return
+	var chunk: Vector2i = _materialize_queue.pop_front()
+	if not _chunks.has(chunk):
+		return
+	if not bool(_chunks[chunk]["materialized"]):
+		_materialize(chunk, _chunks[chunk]["data"])
+
+
+func _dematerialize_outside(center: Vector2i, radius: int) -> void:
+	for chunk_value in _chunks.keys():
+		var chunk: Vector2i = chunk_value
+		if maxi(absi(chunk.x - center.x), absi(chunk.y - center.y)) <= radius:
+			continue
+		if not bool(_chunks[chunk]["materialized"]):
+			continue
+		if bool(_chunks[chunk]["dirty"]):
+			# 玩家改动过的块先落盘，避免去物化吞掉 delta。
+			var flush_result := flush_chunk(chunk)
+			if not bool(flush_result.get("ok", false)):
+				continue
+		world.dematerialize_chunk(chunk)
+		_chunks[chunk]["materialized"] = false
 
 
 ## 强制立即确保一块（不进入队列）：读档/寻路规划前同步用。
@@ -226,7 +279,10 @@ func _drive_generation() -> void:
 				continue
 			_active_chunk = next
 			_active_job = generator.make_job(next)
-			_active_materialize = true
+			_active_materialize = (
+				maxi(absi(next.x - _last_center.x), absi(next.y - _last_center.y))
+				<= config.materialize_radius_chunks
+			)
 			break
 		if _active_job == null:
 			return
@@ -391,6 +447,7 @@ func _evaluate_unload() -> void:
 func unload_chunk(chunk: Vector2i) -> void:
 	if not _chunks.has(chunk):
 		return
+	_materialize_queue.erase(chunk)
 	if _chunks[chunk]["dirty"]:
 		var result := flush_chunk(chunk)
 		if not bool(result.get("ok", false)):
@@ -571,6 +628,7 @@ func clear_all() -> void:
 	_chunks.clear()
 	_dirty_chunks.clear()
 	_queue.clear()
+	_materialize_queue.clear()
 	_pending_restore.clear()
 	_load_snapshot.clear()
 	_live_overrides.clear()

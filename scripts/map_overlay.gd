@@ -20,6 +20,7 @@ var _title_label: Label
 var _hint_label: Label
 var _close_button: Button
 var _hover_block := Vector2i(2147483647, 2147483647)
+var _map_redraw_elapsed := 0.0
 
 
 func _ready() -> void:
@@ -89,9 +90,14 @@ func is_open() -> bool:
 	return visible
 
 
-func _process(_delta: float) -> void:
-	if visible:
-		queue_redraw()
+func _process(delta: float) -> void:
+	if not visible:
+		return
+	_map_redraw_elapsed += delta
+	if _map_redraw_elapsed < 0.1:
+		return
+	_map_redraw_elapsed = 0.0
+	queue_redraw()
 
 
 func _layout_map() -> void:
