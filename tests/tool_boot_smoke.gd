@@ -1,6 +1,7 @@
 extends Node
 ## 冒烟：真实 main.tscn 启动若干帧，检查区块生成 / 物化 / 地形查询 / 存读档都通了。
 func _ready() -> void:
+	SavePaths.set_root("user://saves/test_boot_smoke")
 	var main: Node = load("res://scenes/main.tscn").instantiate()
 	add_child(main)
 	await get_tree().process_frame

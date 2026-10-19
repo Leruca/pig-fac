@@ -781,6 +781,20 @@ func get_ore_name(ore_id: int) -> String:
 	return "矿石"
 
 
+func get_ore_item_id(ore_id: int) -> String:
+	if worldgen_config != null:
+		var entry := worldgen_config.ore_type_by_id(ore_id)
+		if not entry.is_empty():
+			match str(entry["id"]):
+				"copper":
+					return "copper_ore"
+				"iron":
+					return "iron_ore"
+				"gold":
+					return "gold_ore"
+	return "copper_ore"
+
+
 func ore_display_name(ore_name: String) -> String:
 	match ore_name:
 		"copper":

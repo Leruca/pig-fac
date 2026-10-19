@@ -137,6 +137,7 @@ func _ready() -> void:
 	hud.esc_menu.save_requested.connect(_on_pause_save_requested)
 	hud.esc_menu.load_requested.connect(_on_pause_load_requested)
 	hud.esc_menu.volume_toggle_requested.connect(_on_pause_volume_toggle_requested)
+	hud.esc_menu.new_game_requested.connect(_on_new_game_requested)
 	_save_manager = SaveManager.new()
 	_save_manager.setup(self)
 	chunk_manager = chunk_manager_node
@@ -151,6 +152,8 @@ func _ready() -> void:
 			seed_value = SeedSystem.parse_seed(override)
 		else:
 			seed_value = SeedSystem.splitmix64(Time.get_unix_time_from_system() * 1000.0)
+		# 先落盘 seed，避免玩家没保存就退出后换地图。
+		_save_manager.persist_seed(seed_value)
 	world_objects.worldgen_seed = seed_value
 	chunk_manager.setup(worldgen_config, seed_value, world_objects, _pig_chunk_callable())
 	chunk_manager.farm_plots = farm.plots
@@ -386,7 +389,12 @@ func _handle_escape() -> void:
 
 func _open_pause_menu() -> void:
 	_end_right_drag()
-	hud.open_esc_menu(_save_manager.save_path(), _audio_muted, _save_manager.has_save())
+	hud.open_esc_menu(
+		_save_manager.save_path(),
+		_audio_muted,
+		_save_manager.has_save(),
+		SeedSystem.seed_to_string(chunk_manager.get_seed())
+	)
 	get_tree().paused = true
 
 
@@ -419,6 +427,22 @@ func _on_pause_volume_toggle_requested() -> void:
 	if hud.esc_menu != null:
 		hud.esc_menu.set_muted(_audio_muted)
 		hud.esc_menu.set_status("音效已%s。" % ("关闭" if _audio_muted else "开启"))
+
+
+func _on_new_game_requested(seed_text: String) -> void:
+	var seed_value := 0
+	if seed_text.is_empty():
+		seed_value = SeedSystem.splitmix64(Time.get_unix_time_from_system() * 1000.0)
+	else:
+		seed_value = SeedSystem.parse_seed(seed_text)
+	_close_pause_menu()
+	if not SavePaths.clear_root():
+		hud.set_hint("无法清空旧存档目录，新游戏未开始。")
+		return
+	OS.set_environment("PIGFAC_SEED", SeedSystem.seed_to_string(seed_value))
+	var reload_error := get_tree().reload_current_scene()
+	if reload_error != OK:
+		hud.set_hint("新游戏启动失败（错误码 %d）。" % reload_error)
 
 
 func apply_audio_muted(muted: bool) -> void:
@@ -1239,13 +1263,22 @@ func _use_hammer(cell: Vector2i, actor: Pig = null) -> void:
 	if world_objects.has_ore(cell):
 		var ore := world_objects.get_ore(cell)
 		var ore_id := int(ore.get("ore_id", 0))
+		var ore_item := world_objects.get_ore_item_id(ore_id)
+		if not user.inventory.can_add_item(ore_item, 1):
+			hud.set_hint("背包没有空位，无法装下%s。" % ItemDB.get_display_name(ore_item))
+			return
 		var hit_ore := world_objects.hit_ore(cell, 1)
 		var ore_name := world_objects.get_ore_name(ore_id)
+		user.inventory.add_item(ore_item, 1)
 		_play_sfx(hammer_sound, 0.94, 1.06, cell)
 		if bool(hit_ore.get("mined", false)):
-			hud.set_hint("矿脉采空了（%s）。" % ore_name)
+			hud.set_hint("采空了%s，获得 1 个%s。" % [ore_name, ItemDB.get_display_name(ore_item)])
 		else:
-			hud.set_hint("%s 还剩 %d 单位。" % [ore_name, int(hit_ore.get("remaining", 0))])
+			hud.set_hint("%s 还剩 %d 单位；获得 1 个%s。" % [
+				ore_name,
+				int(hit_ore.get("remaining", 0)),
+				ItemDB.get_display_name(ore_item),
+			])
 		return
 
 	# 石头/灌木：按耐久递减。

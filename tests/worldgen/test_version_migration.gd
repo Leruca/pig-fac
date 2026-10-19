@@ -9,6 +9,7 @@ const SEED := 246810
 
 
 func _ready() -> void:
+	SavePaths.set_root("user://saves/test_version_migration")
 	config = WorldGenConfig.load_default()
 	_test_absolutes_preserved()
 	_test_relatives_clamped()
@@ -118,7 +119,7 @@ func _test_relatives_clamped() -> void:
 
 ## 重基之后若什么都不剩（所有相对条目都指向已消失的基底物），文件应被删除而不是留空壳。
 func _test_empty_after_rebase_deletes_file() -> void:
-	DirAccess.make_dir_recursive_absolute(ChunkStore.BLOCK_ROOT)
+	SavePaths.ensure_dirs()
 	var chunk := Vector2i(-5, -5)
 	var stale := {
 		"mined": {"100000,100000": 3},

@@ -13,9 +13,10 @@ var _manager: ChunkManager
 
 
 func _ready() -> void:
+	SavePaths.set_root("user://saves/test_save_regressions")
 	config = WorldGenConfig.load_default()
 	_cleanup_files()
-	DirAccess.make_dir_recursive_absolute(ChunkStore.BLOCK_ROOT)
+	SavePaths.ensure_dirs()
 	_setup()
 	_test_damage_survives_reload_then_unload()
 	_test_natural_block_hp_persists()
@@ -27,7 +28,7 @@ func _ready() -> void:
 
 
 func _cleanup_files() -> void:
-	var dir := DirAccess.open(ChunkStore.BLOCK_ROOT)
+	var dir := DirAccess.open(SavePaths.blocks())
 	if dir == null:
 		return
 	for file_name in dir.get_files():

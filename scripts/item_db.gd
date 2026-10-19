@@ -67,6 +67,27 @@ const ITEMS: Dictionary = {
 		"max_stack": 64,
 		"kind": "material",
 	},
+	"copper_ore": {
+		"name": "铜矿石",
+		"description": "从铜矿脉敲下来的矿石，可用于后续冶炼与合成。",
+		"icon_path": "res://assets/copper_ore.svg",
+		"max_stack": 64,
+		"kind": "ore",
+	},
+	"iron_ore": {
+		"name": "铁矿石",
+		"description": "从铁矿脉敲下来的矿石，可用于后续冶炼与合成。",
+		"icon_path": "res://assets/iron_ore.svg",
+		"max_stack": 64,
+		"kind": "ore",
+	},
+	"gold_ore": {
+		"name": "金矿石",
+		"description": "从金矿脉敲下来的稀有矿石。",
+		"icon_path": "res://assets/gold_ore.svg",
+		"max_stack": 64,
+		"kind": "ore",
+	},
 	"chest": {
 		"name": "箱子",
 		"description": "放在地上的 40 格储物箱，右键打开。",

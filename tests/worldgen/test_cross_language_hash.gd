@@ -57,9 +57,18 @@ func _initialize() -> void:
 	file.store_string(JSON.stringify({"entries": entries}))
 	file.close()
 
-	var python := OS.get_environment("PYTHON")
+	var python := OS.get_environment("PYTHON").strip_edges()
 	if python.is_empty():
-		python = "python3"
+		for candidate in ["python3", "python"]:
+			var probe: Array = []
+			if OS.execute(candidate, ["--version"], probe, true) == 0:
+				python = candidate
+				break
+	if python.is_empty():
+		# 跨语言对拍需要外部 Python；没有时跳过而不是让整套测试失败。
+		print("CROSS LANGUAGE HASH TESTS SKIPPED: 未找到 Python（可设置 PYTHON 环境变量）")
+		quit(0)
+		return
 	var checker_path := ProjectSettings.globalize_path(CHECKER)
 	var export_path := ProjectSettings.globalize_path(EXPORT_PATH)
 	var output: Array = []

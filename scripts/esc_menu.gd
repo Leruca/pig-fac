@@ -6,12 +6,18 @@ signal resume_requested
 signal save_requested
 signal load_requested
 signal volume_toggle_requested
+signal new_game_requested(seed_text: String)
 
 var _status_label: Label
 var _save_path_label: Label
+var _seed_label: Label
+var _seed_input: LineEdit
+var _new_game_button: Button
 var _volume_button: Button
 var _load_button: Button
 var _panel: PanelContainer
+var _seed_text := ""
+var _new_game_armed := false
 
 
 func _ready() -> void:
@@ -30,10 +36,14 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-func open(save_path: String, muted: bool, has_save: bool) -> void:
+func open(save_path: String, muted: bool, has_save: bool, seed_text: String) -> void:
 	visible = true
 	_set_muted_text(muted)
 	_set_has_save(has_save)
+	set_seed(seed_text)
+	if _seed_input != null:
+		_seed_input.text = seed_text
+	_reset_new_game_button()
 	_save_path_label.text = "存档目录：%s" % save_path
 	_status_label.text = "游戏已暂停"
 	_status_label.add_theme_color_override("font_color", UIStyle.TEXT_MUTED)
@@ -63,6 +73,12 @@ func set_muted(muted: bool) -> void:
 
 func set_has_save(has_save: bool) -> void:
 	_set_has_save(has_save)
+
+
+func set_seed(seed_text: String) -> void:
+	_seed_text = seed_text
+	if _seed_label != null:
+		_seed_label.text = "世界种子：%s" % seed_text
 
 
 func _set_muted_text(muted: bool) -> void:
@@ -110,6 +126,44 @@ func _build_layout() -> void:
 	subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	content.add_child(subtitle)
 
+	var seed_row := HBoxContainer.new()
+	seed_row.add_theme_constant_override("separation", 8)
+	content.add_child(seed_row)
+	_seed_label = _make_label("世界种子：", 12, UIStyle.TEXT_MUTED)
+	_seed_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_seed_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	seed_row.add_child(_seed_label)
+	var copy_seed := _make_button("复制种子", 30.0)
+	copy_seed.custom_minimum_size = Vector2(90.0, 30.0)
+	copy_seed.add_theme_font_size_override("font_size", 12)
+	copy_seed.pressed.connect(func() -> void:
+		DisplayServer.clipboard_set(_seed_text)
+		set_status("种子已复制到剪贴板。")
+	)
+	seed_row.add_child(copy_seed)
+
+	var new_game_row := HBoxContainer.new()
+	new_game_row.add_theme_constant_override("separation", 8)
+	content.add_child(new_game_row)
+	_seed_input = LineEdit.new()
+	_seed_input.placeholder_text = "输入种子，留空则随机"
+	_seed_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_seed_input.custom_minimum_size = Vector2(0.0, 34.0)
+	_seed_input.add_theme_font_override("font", UIStyle.regular_font())
+	_seed_input.add_theme_font_size_override("font_size", 12)
+	_seed_input.add_theme_color_override("font_color", UIStyle.TEXT)
+	_seed_input.add_theme_color_override("font_placeholder_color", UIStyle.TEXT_MUTED)
+	_seed_input.add_theme_stylebox_override(
+		"normal",
+		UIStyle.make_panel(Color(0.09, 0.13, 0.08, 0.98), 8, UIStyle.SLOT_BORDER, 1, false)
+	)
+	new_game_row.add_child(_seed_input)
+	_new_game_button = _make_button("新游戏", 34.0)
+	_new_game_button.custom_minimum_size = Vector2(100.0, 34.0)
+	_new_game_button.add_theme_font_size_override("font_size", 12)
+	_new_game_button.pressed.connect(_on_new_game_pressed)
+	new_game_row.add_child(_new_game_button)
+
 	var separator := ColorRect.new()
 	separator.color = Color(0.72, 0.80, 0.59, 0.14)
 	separator.custom_minimum_size = Vector2(0.0, 1.0)
@@ -140,6 +194,24 @@ func _build_layout() -> void:
 	_save_path_label = _make_label("存档目录：user://saves/main", 10, Color(0.66, 0.72, 0.59, 0.9))
 	_save_path_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	content.add_child(_save_path_label)
+
+
+func _on_new_game_pressed() -> void:
+	if _new_game_button == null:
+		return
+	if not _new_game_armed:
+		_new_game_armed = true
+		_new_game_button.text = "确认新游戏"
+		set_status("新游戏会清空当前存档和世界，再次点击确认。", true)
+		return
+	_reset_new_game_button()
+	new_game_requested.emit(_seed_input.text.strip_edges() if _seed_input != null else "")
+
+
+func _reset_new_game_button() -> void:
+	_new_game_armed = false
+	if _new_game_button != null:
+		_new_game_button.text = "新游戏"
 
 
 func _make_button(text: String, height: float) -> Button:

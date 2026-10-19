@@ -10,6 +10,7 @@ var _extra: Array[Node] = []
 
 
 func _ready() -> void:
+	SavePaths.set_root("user://saves/test_save_roundtrip")
 	config = WorldGenConfig.load_default()
 	_cleanup_files()
 	_setup_scene()
@@ -27,7 +28,7 @@ func _ready() -> void:
 
 
 func _cleanup_files() -> void:
-	var dir := DirAccess.open(ChunkStore.BLOCK_ROOT)
+	var dir := DirAccess.open(SavePaths.blocks())
 	if dir == null:
 		return
 	for file_name in dir.get_files():
@@ -36,7 +37,7 @@ func _cleanup_files() -> void:
 
 
 func _setup_scene() -> void:
-	var _err := DirAccess.open("user://").make_dir_recursive("saves/main/blocks")
+	SavePaths.ensure_dirs()
 	_world = WorldObjects.new()
 	_world.cell_size = 36
 	_world.worldgen_seed = SEED

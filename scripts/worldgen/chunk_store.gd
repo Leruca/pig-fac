@@ -12,7 +12,6 @@ extends RefCounted
 ## - 空 overrides 的文件一律删除（而不是写空文件），保证"与生成一致"的块不占磁盘。
 
 const SAVE_VERSION := 2
-const BLOCK_ROOT := "user://saves/main/blocks"
 
 
 ## 由活体状态 + 生成基底构建一块的 overrides。返回的字典恒为规范结构。
@@ -178,7 +177,7 @@ static func block_file_name(chunk: Vector2i) -> String:
 
 
 static func block_file_path(chunk: Vector2i) -> String:
-	return "%s/%s" % [BLOCK_ROOT, block_file_name(chunk)]
+	return "%s/%s" % [SavePaths.blocks(), block_file_name(chunk)]
 
 
 ## 写一块的 overrides；空 overrides → 删掉已存在的文件（脏→净回归）。
@@ -186,7 +185,7 @@ static func write_block(chunk: Vector2i, worldgen_version: int, overrides: Dicti
 	var path := block_file_path(chunk)
 	if is_empty(overrides):
 		if FileAccess.file_exists(path):
-			var dir := DirAccess.open(BLOCK_ROOT)
+			var dir := DirAccess.open(SavePaths.blocks())
 			if dir != null:
 				dir.remove(block_file_name(chunk))
 		return {"ok": true, "deleted": true, "path": path}
@@ -195,18 +194,17 @@ static func write_block(chunk: Vector2i, worldgen_version: int, overrides: Dicti
 		"worldgen_version": worldgen_version,
 		"overrides": overrides,
 	}
-	var file := FileAccess.open(path, FileAccess.WRITE)
-	if file == null:
-		return {"ok": false, "message": "无法写入区块文件：%s" % path}
-	file.store_string(JSON.stringify(payload, "\t"))
-	file.close()
+	if not SavePaths.atomic_write_text(path, JSON.stringify(payload, "\t")):
+		return {"ok": false, "message": "无法原子写入区块文件：%s" % path}
 	return {"ok": true, "deleted": false, "path": path}
 
 
 ## 读出所有区块文件。返回 {chunk: payload}；解析失败直接返回错误（先全部解析成功再清空重建）。
-static func read_all_blocks() -> Dictionary:
+## legacy=true 时兼容 v1：旧块没有 chunk 字段，按 block 或文件名推断，并把旧顶层字段
+## 转换为 overrides。迁移写入由 SaveManager 负责。
+static func read_all_blocks(legacy: bool = false) -> Dictionary:
 	var result := {"ok": true, "blocks": {}, "message": ""}
-	var dir := DirAccess.open(BLOCK_ROOT)
+	var dir := DirAccess.open(SavePaths.blocks())
 	if dir == null:
 		return result
 	var file_names: Array[String] = []
@@ -218,7 +216,7 @@ static func read_all_blocks() -> Dictionary:
 	# 由调用方决定是否提示玩家（其余区块照常恢复）。
 	var skipped: Array[String] = []
 	for file_name in file_names:
-		var path := "%s/%s" % [BLOCK_ROOT, file_name]
+		var path := "%s/%s" % [SavePaths.blocks(), file_name]
 		var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
 		if not (parsed is Dictionary):
 			skipped.append(file_name)
@@ -226,6 +224,12 @@ static func read_all_blocks() -> Dictionary:
 		var payload: Dictionary = parsed
 		var pair: Variant = payload.get("chunk", null)
 		if not (pair is Array) or pair.size() < 2:
+			if legacy:
+				var converted := _convert_legacy(payload, file_name)
+				if not converted.is_empty():
+					var converted_chunk: Array = converted["chunk"]
+					result["blocks"][Vector2i(int(converted_chunk[0]), int(converted_chunk[1]))] = converted
+					continue
 			skipped.append(file_name)
 			continue
 		var chunk := Vector2i(int(pair[0]), int(pair[1]))
@@ -234,6 +238,140 @@ static func read_all_blocks() -> Dictionary:
 	if not skipped.is_empty():
 		push_warning("ChunkStore: 跳过 %d 个损坏的区块文件：%s" % [skipped.size(), ", ".join(skipped)])
 	return result
+
+
+static func _convert_legacy(payload: Dictionary, file_name: String) -> Dictionary:
+	var chunk := _legacy_chunk(payload, file_name)
+	if chunk == Vector2i(2147483647, 2147483647):
+		return {}
+	return {
+		"chunk": [chunk.x, chunk.y],
+		"worldgen_version": 0,
+		"overrides": _legacy_overrides(payload),
+	}
+
+
+static func _legacy_chunk(payload: Dictionary, file_name: String) -> Vector2i:
+	var block: Variant = payload.get("block", null)
+	if block is Array and block.size() >= 2:
+		return Vector2i(int(block[0]), int(block[1]))
+	var stem := file_name.trim_suffix(".json")
+	var parts := stem.split("_")
+	if parts.size() >= 2:
+		return Vector2i(int(parts[0]), int(parts[1]))
+	return Vector2i(2147483647, 2147483647)
+
+
+## v1 只有玩家实际改动过的内容；把树当 planted_trees，其他对象按绝对值保留。
+## 同时在旧对象占用的格子上登记 removed_naturals / removed_ores，避免新版生成器
+## 在箱子/农田/猪脚下重新生成石头或矿。
+static func _legacy_overrides(payload: Dictionary) -> Dictionary:
+	var overrides := {
+		"mined": {},
+		"removed_ores": [],
+		"chopped_trees": [],
+		"tree_hits": {},
+		"planted_trees": [],
+		"removed_naturals": [],
+		"natural_hits": {},
+		"saplings": [],
+		"logs": [],
+		"planks": [],
+		"fences": [],
+		"chests": [],
+		"nests": [],
+		"farm": [],
+		"pigs": [],
+	}
+	var removed_naturals := {}
+	var removed_ores := {}
+	for tree_value in payload.get("trees", []):
+		if not (tree_value is Dictionary):
+			continue
+		var tree: Dictionary = tree_value
+		var root: Vector2i = SaveCodec.decode(tree.get("root", [0, 0]))
+		overrides["planted_trees"].append({
+			"root": [root.x, root.y],
+			"hits": int(tree.get("hits", 3)),
+		})
+		for y in WorldObjects.TREE_SIZE:
+			for x in WorldObjects.TREE_SIZE:
+				var cell := root + Vector2i(x, y)
+				removed_naturals[cell] = true
+				removed_ores[cell] = true
+	for key in ["logs", "planks", "fences"]:
+		for cell_value in payload.get(key, []):
+			var cell: Vector2i = SaveCodec.decode(cell_value)
+			overrides[key].append([cell.x, cell.y])
+			removed_naturals[cell] = true
+			removed_ores[cell] = true
+	for cell_value in payload.get("farm", []):
+		if not (cell_value is Dictionary):
+			continue
+		var plot: Dictionary = cell_value
+		var cell: Vector2i = SaveCodec.decode(plot.get("cell", [0, 0]))
+		removed_naturals[cell] = true
+		removed_ores[cell] = true
+		overrides["farm"].append({
+			"cell": [cell.x, cell.y],
+			"crop_id": str(plot.get("crop_id", "")),
+			"stage": int(plot.get("stage", 0)),
+			"elapsed": float(plot.get("elapsed", 0.0)),
+		})
+	for cell_value in payload.get("saplings", []):
+		if not (cell_value is Dictionary):
+			continue
+		var sapling: Dictionary = cell_value
+		var cell: Vector2i = SaveCodec.decode(sapling.get("cell", [0, 0]))
+		removed_naturals[cell] = true
+		removed_ores[cell] = true
+		overrides["saplings"].append({
+			"cell": [cell.x, cell.y],
+			"stage": int(sapling.get("stage", 0)),
+			"elapsed": float(sapling.get("elapsed", 0.0)),
+			"mature_root": [cell.x - 1, cell.y - 1],
+			"mature_hp": 0,
+		})
+	for cell_value in payload.get("chests", []):
+		if not (cell_value is Dictionary):
+			continue
+		var chest: Dictionary = cell_value
+		var cell: Vector2i = SaveCodec.decode(chest.get("cell", [0, 0]))
+		removed_naturals[cell] = true
+		removed_ores[cell] = true
+		overrides["chests"].append({
+			"cell": [cell.x, cell.y],
+			"inventory": chest.get("inventory", {}),
+		})
+	for cell_value in payload.get("nests", []):
+		if not (cell_value is Dictionary):
+			continue
+		var nest: Dictionary = cell_value
+		var root: Vector2i = SaveCodec.decode(nest.get("root", [0, 0]))
+		for y in 3:
+			for x in 3:
+				var cell := root + Vector2i(x, y)
+				removed_naturals[cell] = true
+				removed_ores[cell] = true
+		overrides["nests"].append({
+			"root": [root.x, root.y],
+			"inventory": nest.get("inventory", {}),
+			"progress": float(nest.get("progress", 0.0)),
+			"active": bool(nest.get("active", false)),
+		})
+	for pig_value in payload.get("pigs", []):
+		if not (pig_value is Dictionary):
+			continue
+		var pig: Dictionary = pig_value
+		var cell: Vector2i = SaveCodec.decode(pig.get("cell", [0, 0]))
+		removed_naturals[cell] = true
+		removed_ores[cell] = true
+		overrides["pigs"].append(pig)
+	for cell in removed_naturals.keys():
+		overrides["removed_naturals"].append([cell.x, cell.y])
+	for cell in removed_ores.keys():
+		overrides["removed_ores"].append([cell.x, cell.y])
+	return overrides
 
 
 static func _cell_key(cell: Vector2i) -> String:

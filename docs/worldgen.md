@@ -24,7 +24,7 @@ JSON 的数字是 double，`9223372036854775807` 存进去读回会变成 `92233
 为何不用 `String.hex_to_int()`：它遇到大于 2^63 的输入会**报错并返回 INT64_MAX**，
 位模式被悄悄改掉。手动累积不会。
 
-新档：`PIGFAC_SEED` 环境变量 → 否则用系统时间派生一次，**立刻写入 `global.json`**，之后固定。
+新档：`PIGFAC_SEED` 环境变量 → 否则用系统时间派生一次；种子会**立刻写入 `user://saves/main/seed.txt`**，下次启动沿用。正式保存后同时写入 `global.json` 的 `seed` 字段。Esc 菜单可以查看/复制种子，也可以用输入框指定种子开新游戏。
 
 ---
 
@@ -226,7 +226,8 @@ world_objects.dematerialize_chunk(chunk)
 ## 7. 存档（ChunkStore + SaveManager）
 
 ```
-user://saves/main/global.json       # 全局态：seed(字符串) / worldgen_version / 相机 / 迷雾 / 猪编号
+user://saves/main/global.json       # 全局态：seed(字符串) / worldgen_version / 相机 / 迷雾 / 猪列表
+user://saves/main/seed.txt          # 首次启动的种子；未正式保存时也能复现地图
 user://saves/main/blocks/x_y.json   # 区块差分：{chunk, worldgen_version, overrides}
 ```
 
@@ -243,7 +244,7 @@ user://saves/main/blocks/x_y.json   # 区块差分：{chunk, worldgen_version, o
 | `saplings` | `{cell, stage, elapsed, mature_root, mature_hp}` |
 | `logs` / `planks` / `fences` / `chests` / `nests` | 建造物 |
 | `farm` | 地块 `{cell, crop_id, stage, elapsed}` |
-| `pigs` | 落在该块的猪（全局态，随块文件走）|
+| `pigs` | 仅用于 v1 迁移兼容；v2 正常存档把猪放 `global.json` |
 
 **差分是"活体状态 vs 重生成基底"做差**得来的，不是按操作枚举记录。三个直接好处：
 
@@ -253,9 +254,24 @@ user://saves/main/blocks/x_y.json   # 区块差分：{chunk, worldgen_version, o
 
 保存流程：遍历 dirty 集合（加有猪的块）→ 算 overrides → 非空写文件 / 空则删文件；
 然后全量重写 `global.json`（全局态无法增量）。**已移除**旧版的 `_clear_block_files()` 全删步骤。
+所有区块/全局写入都走 `SavePaths.atomic_write_text()`：先写 `.tmp`，再 rename；中断不会留下半截 JSON。
 
 读档流程：全部解析成功 → 清空运行时 → 急切恢复相机附近 N 块 → 其余登记为"待惰性恢复"，
 走与运行时同一套 `ensure_radius` 分片管线。先解析后重建的安全性保持不变。
+
+### v1 存档迁移
+
+`version=1` 的旧档会在读档时转换：`ChunkStore.read_all_blocks(true)` 用文件名/旧 `block`
+推断区块，把旧顶层 `pigs/trees/farm/chests/nests/...` 包装成 overrides；旧树按
+`planted_trees` 保留，旧对象占用的格子登记 `removed_naturals/removed_ores`；猪汇总进
+`global.json`。旧档没有 seed，迁移使用固定的 `legacy-v1` 派生种子，并把新格式立刻写回，
+避免下次启动再迁移到另一张地图。
+
+### 测试隔离
+
+测试不再使用玩家目录。`tests/run_worldgen_tests.sh` 设置 `PIGFAC_TEST_SAVE_ROOT`，
+各存档测试再用 `SavePaths.set_root("user://saves/test_...")` 隔离；`boot_smoke` 也用
+独立目录。运行测试不会改动 `user://saves/main`。
 
 树苗跨块成熟：`sapling` 存 `mature_root` / `mature_hp`（种下即用 `hash2` 派生），
 成熟时**同时**标脏树苗所在块与根格所在块（可能不同块）。
@@ -352,14 +368,15 @@ godot --headless --path . -s res://tests/bench_chunk_gen.gd
 | `test_band_ownership` | 跨块 3×3 树在**每一个**相交区块都被收录（81k 断言，多区块原点/多种子）；不得出现互相重叠的树；跨块树可被砍且可落盘 |
 | `test_terrain_single_truth` | 全量比对（6 种子 × 4 区块 × 65025 格）「存储地形」与「点查询地形」逐格一致；窗口内外取值逐位一致 |
 | `test_slice_and_config_guards` | 行预算是真闸门；任意切片粒度哈希一致；`chunk_radius` 由 `chunk_size` 推导 |
-| `test_save_regressions` | 读档→卸载→重载后损伤不回退；石头/灌木耐久落盘；未加载脏块不静默跳过；原子写不留 .tmp |
-| `test_cross_language_hash` | 导出完整序列化输入，交给纯 Python 实现复算，验证跨语言哈希一致 |
+| `test_save_regressions` | 读档→卸载→重载后损伤不回退；石头/灌木耐久落盘；未加载脏块不静默跳过；原子写先落 `.tmp` 且不留残留 |
+| `test_cross_language_hash` | 导出完整序列化输入，交给纯 Python 实现复算；找不到 Python 时明确 SKIP |
 | `test_version_migration` | 迁移式烘焙：绝对值字段一条不丢、相对值字段按新基底夹取、重基为空则删文件 |
 | `bench_chunk_gen` | 100 块 avg/p99 对预算断言（验收 11）|
 
 运行方式：SceneTree 系列用 `godot --headless --path . -s <path>.gd`；
 需要 autoload / 节点树的（`test_save_roundtrip` / `test_unload_consistency` / `test_pathfinding_no_gen_storm`）
 用同名 `.tscn`：`godot --headless --path . res://tests/worldgen/<name>.tscn`。
+`cross_language_hash` 在 Windows 可设置 `PYTHON` 指向 Python 可执行文件；没有 Python 时会跳过而不是失败。
 
 一键全跑：`bash tests/run_worldgen_tests.sh`。
 ---

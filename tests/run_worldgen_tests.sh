@@ -14,6 +14,9 @@ fi
 
 cd "$(dirname "$0")/.." || exit 2
 
+# 测试存档与玩家 user://saves/main 完全隔离。
+export PIGFAC_TEST_SAVE_ROOT="${PIGFAC_TEST_SAVE_ROOT:-user://saves/worldgen_test_run}"
+
 pass=0
 fail=0
 failed_names=()
