@@ -4,6 +4,7 @@ extends PanelContainer
 
 var _label: Label
 var _elapsed := 0.0
+var _frames := 0
 var _enabled := true
 
 
@@ -47,21 +48,26 @@ func is_enabled() -> bool:
 
 func _process(delta: float) -> void:
 	_elapsed += delta
+	_frames += 1
 	if _elapsed < 0.25:
 		return
+	var fps := float(_frames) / maxf(0.001, _elapsed)
+	var ms := 1000.0 / maxf(0.001, fps)
 	_elapsed = 0.0
-	_refresh()
+	_frames = 0
+	_refresh(fps, ms)
 
 
-func _refresh() -> void:
+func _refresh(fps: float = 0.0, ms: float = 0.0) -> void:
 	if _label == null:
 		return
-	var fps := Engine.get_frames_per_second()
-	var ms := 1000.0 / maxf(1.0, float(fps))
-	_label.text = "FPS %d  ·  %.1f ms" % [fps, ms]
-	if fps < 30:
+	if fps <= 0.0:
+		_label.text = "FPS --  ·  -- ms"
+		return
+	_label.text = "FPS %d  ·  %.1f ms" % [int(round(fps)), ms]
+	if fps < 30.0:
 		_label.add_theme_color_override("font_color", UIStyle.BAD)
-	elif fps < 50:
+	elif fps < 50.0:
 		_label.add_theme_color_override("font_color", UIStyle.ACCENT)
 	else:
 		_label.add_theme_color_override("font_color", UIStyle.GOOD)
