@@ -6,7 +6,10 @@ extends Node2D
 ## 作物按 30 秒一个阶段生长，90 秒达到成熟阶段（stage 3）。
 
 signal plot_changed(cell: Vector2i)
+## 玩家操作导致的阶段变化（浇水催熟）→ 需要落盘。
 signal crop_stage_changed(cell: Vector2i, crop_id: String, stage: int)
+## 自然生长导致的阶段变化 → **不**落盘（§5.3 计时豁免，否则每块每 30 秒都脏）。
+signal crop_grew(cell: Vector2i, crop_id: String, stage: int)
 
 const SOIL_DARK := Color("#5D412C")
 const SOIL := Color("#7B5538")
@@ -141,7 +144,7 @@ func advance_growth(seconds: float) -> void:
 		plot["stage"] = stage
 		if advanced:
 			_refresh()
-			crop_stage_changed.emit(cell, crop_id, stage)
+			crop_grew.emit(cell, crop_id, stage)
 
 
 func is_tilled(cell: Vector2i) -> bool:
