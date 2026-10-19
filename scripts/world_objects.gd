@@ -101,6 +101,10 @@ var _next_born_pig_index := 4
 var _materialized: Dictionary = {}
 ## 区块 -> {树根: true}：物化时登记的树根；卸载某块只会解除它自己的引用。
 var _tree_refs: Dictionary = {}
+var _block_multimesh: MultiMeshInstance2D
+var _ore_multimesh: MultiMeshInstance2D
+var _blocks_dirty := false
+var _ores_dirty := false
 ## 被移除/采空的程序生成物（运行时镜像；落盘时写进 overrides）。物化时据此跳过。
 var _removed_trees: Dictionary = {}
 var _removed_ores: Dictionary = {}
@@ -138,13 +142,70 @@ func _ready() -> void:
 	_log_texture = load("res://assets/log.svg") as Texture2D
 	_chest_texture = load("res://assets/chest.svg") as Texture2D
 	_nest_texture = load("res://assets/pig_nest.svg") as Texture2D
+	_setup_visual_multimeshes()
 	queue_redraw()
+
+
+func _setup_visual_multimeshes() -> void:
+	_block_multimesh = _make_multimesh_instance(Vector2(float(cell_size), float(cell_size)), -2)
+	_ore_multimesh = _make_multimesh_instance(Vector2(float(cell_size) * 0.46, float(cell_size) * 0.46), -1)
+
+
+func _make_multimesh_instance(quad_size: Vector2, z: int) -> MultiMeshInstance2D:
+	var instance := MultiMeshInstance2D.new()
+	var multimesh := MultiMesh.new()
+	multimesh.transform_format = MultiMesh.TRANSFORM_2D
+	multimesh.use_colors = true
+	var quad := QuadMesh.new()
+	quad.size = quad_size
+	multimesh.mesh = quad
+	instance.multimesh = multimesh
+	instance.z_index = z
+	add_child(instance)
+	return instance
+
+
+func _rebuild_visual_multimeshes() -> void:
+	if _block_multimesh == null or _ore_multimesh == null:
+		return
+	var block_mm := _block_multimesh.multimesh
+	block_mm.instance_count = placed_blocks.size()
+	var block_index := 0
+	for cell_value in placed_blocks.keys():
+		var cell: Vector2i = cell_value
+		var color := Color("#8F918B") if str(placed_blocks[cell]) == "stone" else Color("#9B9B94")
+		block_mm.set_instance_transform_2d(
+			block_index,
+			Transform2D(0.0, Vector2(cell) * float(cell_size) + Vector2.ONE * (float(cell_size) * 0.5))
+		)
+		block_mm.set_instance_color(block_index, color)
+		block_index += 1
+
+	var ore_mm := _ore_multimesh.multimesh
+	ore_mm.instance_count = ores.size()
+	var ore_index := 0
+	for cell_value in ores.keys():
+		var cell: Vector2i = cell_value
+		var ore: Dictionary = ores[cell]
+		var ore_id := int(ore.get("ore_id", 0))
+		var amount := int(ore.get("amount", 1))
+		var scale := 0.55 + minf(0.45, float(amount) / 14000.0)
+		var ore_transform := Transform2D(PI * 0.25, Vector2.ZERO)
+		ore_transform = ore_transform.scaled_local(Vector2(scale, scale))
+		ore_transform.origin = Vector2(cell) * float(cell_size) + Vector2.ONE * (float(cell_size) * 0.5)
+		ore_mm.set_instance_transform_2d(ore_index, ore_transform)
+		ore_mm.set_instance_color(ore_index, ORE_COLORS.get(ore_id, Color("#B0B0B0")))
+		ore_index += 1
 
 
 func _process(delta: float) -> void:
 	advance_sapling_growth(delta)
 	_advance_nests(delta)
 	_advance_furnaces(delta)
+	if _blocks_dirty or _ores_dirty:
+		_blocks_dirty = false
+		_ores_dirty = false
+		_rebuild_visual_multimeshes()
 	if not is_visible_in_tree():
 		return
 	# 只有镜头 transform 变化时才重提交可视对象；物品改变会由各 mutator 主动
@@ -272,6 +333,9 @@ func rebuild_indexes() -> void:
 	for cell in natural_blocks.keys():
 		var block: Dictionary = natural_blocks[cell]
 		_index_add_cell(cell, "natural", int(block.get("hp", 0)))
+	_rebuild_visual_multimeshes()
+	_blocks_dirty = false
+	_ores_dirty = false
 
 
 # ===== 树 ==============================================================
@@ -588,6 +652,7 @@ func place_placed_block(cell: Vector2i, kind: String) -> bool:
 		return false
 	placed_blocks[cell] = kind
 	_index_add_cell(cell, "block")
+	_blocks_dirty = true
 	mark_dirty(cell)
 	queue_redraw()
 	return true
@@ -606,6 +671,7 @@ func remove_placed_block(cell: Vector2i) -> bool:
 		return false
 	placed_blocks.erase(cell)
 	_index_remove_cell(cell)
+	_blocks_dirty = true
 	mark_dirty(cell)
 	queue_redraw()
 	return true
@@ -920,6 +986,7 @@ func place_ore(cell: Vector2i, ore_id: int, amount: int, vein_id: int = 0) -> vo
 		return
 	ores[cell] = {"ore_id": ore_id, "amount": amount, "vein_id": vein_id}
 	_index_add_cell(cell, "ore", amount)
+	_ores_dirty = true
 	queue_redraw()
 
 
@@ -929,6 +996,7 @@ func remove_ore(cell: Vector2i) -> bool:
 	ores.erase(cell)
 	_index_remove_cell(cell)
 	_removed_ores[cell] = true
+	_ores_dirty = true
 	mark_dirty(cell)
 	queue_redraw()
 	return true
@@ -946,6 +1014,7 @@ func hit_ore(cell: Vector2i, amount: int = 1) -> Dictionary:
 		return {"mined": true, "remaining": 0, "ore_id": ore_id}
 	ore["amount"] = remaining
 	ores[cell] = ore
+	_ores_dirty = true
 	mark_dirty(cell)
 	queue_redraw()
 	return {"mined": false, "remaining": remaining, "ore_id": ore_id}
@@ -1223,8 +1292,7 @@ func _draw() -> void:
 				if saplings.has(cell):
 					_draw_sapling(cell, int(saplings[cell].get("stage", 0)))
 			"ore":
-				if ores.has(cell):
-					_draw_ore(cell, int(ores[cell].get("ore_id", 1)), int(ores[cell].get("amount", 1)))
+				pass
 			"natural":
 				if natural_blocks.has(cell):
 					_draw_natural_block(cell, int(natural_blocks[cell].get("kind", 0)))
@@ -1238,8 +1306,7 @@ func _draw() -> void:
 			"plank":
 				_draw_plank_block(cell)
 			"block":
-				if placed_blocks.has(cell):
-					_draw_placed_block(cell, str(placed_blocks[cell]))
+				pass
 			"furnace":
 				_draw_furnace(cell)
 			"chest":
