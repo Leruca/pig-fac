@@ -42,6 +42,10 @@ const DETAIL_MAP_CELL_METERS := 16
 const DETAIL_MAP_METERS := 256
 const DETAIL_MAP_PX_PER_METER := 2
 
+## 世界生成：种子来自 global.json（新档未指定时随机一次后固定写入）。
+var worldgen_config: WorldGenConfig
+var chunk_manager: ChunkManager
+
 @onready var grid: WorldGrid = $WorldGrid
 @onready var farm: Farm = $Farm
 @onready var world_objects: WorldObjects = $WorldObjects
@@ -61,6 +65,7 @@ const DETAIL_MAP_PX_PER_METER := 2
 @onready var pig_one: Pig = $Pig1
 @onready var pig_two: Pig = $Pig2
 @onready var pig_three: Pig = $Pig3
+@onready var chunk_manager_node: ChunkManager = $ChunkManager
 
 var pigs: Array[Pig] = []
 var active_pig: Pig
@@ -97,6 +102,10 @@ func _ready() -> void:
 	farm.cell_size = grid.cell_size
 	world_objects.cell_size = grid.cell_size
 	world_objects.mature_area_guard = _can_grow_tree_area
+	# 农田改动要落盘：plot_changed（锄/种/铲/收）与 crop_stage_changed（浇水催熟）都是玩家操作；
+	# 自然生长只发 crop_grew，不会把块标脏（§5.3 计时豁免）。
+	farm.plot_changed.connect(_on_farm_plot_changed)
+	farm.crop_stage_changed.connect(_on_farm_crop_stage_changed)
 	world_objects.add_tree(TREE_ROOT)
 
 	pigs = [pig_one, pig_two, pig_three]
@@ -128,8 +137,31 @@ func _ready() -> void:
 	hud.esc_menu.save_requested.connect(_on_pause_save_requested)
 	hud.esc_menu.load_requested.connect(_on_pause_load_requested)
 	hud.esc_menu.volume_toggle_requested.connect(_on_pause_volume_toggle_requested)
+	hud.esc_menu.new_game_requested.connect(_on_new_game_requested)
 	_save_manager = SaveManager.new()
 	_save_manager.setup(self)
+	chunk_manager = chunk_manager_node
+	worldgen_config = WorldGenConfig.load_default()
+	world_objects.worldgen_config = worldgen_config
+	# 种子优先级：已有存档 → 环境变量 PIGFAC_SEED（工具/CI）→ 随机一次后写入存档。
+	# 用 has_saved_seed() 而不是 seed_value == 0：0 是合法种子。
+	var seed_value := _save_manager.stored_seed()
+	if not _save_manager.has_saved_seed():
+		var override := OS.get_environment("PIGFAC_SEED").strip_edges()
+		if not override.is_empty():
+			seed_value = SeedSystem.parse_seed(override)
+		else:
+			seed_value = SeedSystem.splitmix64(Time.get_unix_time_from_system() * 1000.0)
+		# 先落盘 seed，避免玩家没保存就退出后换地图。
+		_save_manager.persist_seed(seed_value)
+	world_objects.worldgen_seed = seed_value
+	chunk_manager.setup(worldgen_config, seed_value, world_objects, _pig_chunk_callable())
+	chunk_manager.farm_plots = farm.plots
+	world_objects.terrain_blocker = chunk_manager.is_terrain_blocked
+	grid.setup(chunk_manager, worldgen_config, seed_value)
+	# 教学树：hp 由世界生成种子派生（替代 randi_range），属于玩家侧固定物，不写进 overrides。
+	world_objects.add_tree(TREE_ROOT)
+	world_objects.rebuild_indexes()
 	apply_audio_muted(false)
 	hud.unbind_pig()
 	hud.setup_map(self)
@@ -168,6 +200,13 @@ func _process(delta: float) -> void:
 		_free_camera_position = camera.global_position
 		var cell := grid.world_to_cell(active_pig.global_position)
 		if cell != _last_pig_cell:
+			# 猪跨区块移动会改变两个区块的记录 → 两边都标脏（§5.3）。
+			if chunk_manager != null and _last_pig_cell != Vector2i(2147483647, 2147483647):
+				var old_chunk := chunk_manager.chunk_of_cell(_last_pig_cell)
+				var new_chunk := chunk_manager.chunk_of_cell(cell)
+				if old_chunk != new_chunk:
+					_mark_pig_chunk_dirty(_last_pig_cell)
+					_mark_pig_chunk_dirty(cell)
 			_last_pig_cell = cell
 			hud.set_pig_cell(cell, grid.cell_size)
 	else:
@@ -220,6 +259,53 @@ func _mark_visible_blocks() -> void:
 	for pig in pigs:
 		if pig != null:
 			_visited_blocks[block_of_cell(grid.world_to_cell(pig.global_position))] = true
+	if chunk_manager != null:
+		# ensure_radius 内部按「中心块是否变化」去重，每帧调用也只是 1 次比较。
+		chunk_manager.ensure_radius(get_center_focus_cell())
+
+
+## 相机中心格：有选中的猪时用猪的位置（相机跟随它），否则用自由相机位置。
+func get_center_focus_cell() -> Vector2i:
+	if active_pig != null:
+		return grid.world_to_cell(active_pig.global_position)
+	return grid.world_to_cell(camera.global_position)
+
+
+## 猪所在区块（ChunkManager 用它保证「猪周围永远已生成」，路径规划前不逐格兜底）。
+func _pig_chunk_callable() -> Callable:
+	return func() -> Array:
+		var chunks: Array = []
+		for pig_value in pigs:
+			var pig: Pig = pig_value
+			if pig == null:
+				continue
+			chunks.append(chunk_manager.chunk_of_cell(grid.world_to_cell(pig.global_position)))
+		if active_pig != null:
+			chunks.append(chunk_manager.chunk_of_cell(get_center_focus_cell()))
+		return chunks
+
+
+## 农田地块变化 → 区块标脏（overrides.farm 需要落盘）。
+func _on_farm_plot_changed(cell: Vector2i) -> void:
+	_mark_pig_chunk_dirty(cell)
+
+
+## 浇水催熟（玩家操作）→ 标脏；自然生长发的是 crop_grew，天然豁免。
+func _on_farm_crop_stage_changed(cell: Vector2i, _crop_id: String, _stage: int) -> void:
+	_mark_pig_chunk_dirty(cell)
+
+
+## 猪的增删/移动会让区块记录变化 → 目标块与来源块都必须标脏。
+func _mark_pig_chunk_dirty(cell: Vector2i) -> void:
+	if chunk_manager == null:
+		return
+	chunk_manager.mark_cell_dirty(cell)
+
+
+## 交互落点校验：会到达的格子必须先确保所在区块已生成（单块、有限次）。
+func ensure_cell_chunk(cell: Vector2i) -> void:
+	if chunk_manager != null:
+		chunk_manager.ensure_chunk_now(chunk_manager.chunk_of_cell(cell))
 
 
 func enter_big_block(block: Vector2i) -> void:
@@ -303,7 +389,12 @@ func _handle_escape() -> void:
 
 func _open_pause_menu() -> void:
 	_end_right_drag()
-	hud.open_esc_menu(_save_manager.save_path(), _audio_muted, _save_manager.has_save())
+	hud.open_esc_menu(
+		_save_manager.save_path(),
+		_audio_muted,
+		_save_manager.has_save(),
+		SeedSystem.seed_to_string(chunk_manager.get_seed())
+	)
 	get_tree().paused = true
 
 
@@ -336,6 +427,22 @@ func _on_pause_volume_toggle_requested() -> void:
 	if hud.esc_menu != null:
 		hud.esc_menu.set_muted(_audio_muted)
 		hud.esc_menu.set_status("音效已%s。" % ("关闭" if _audio_muted else "开启"))
+
+
+func _on_new_game_requested(seed_text: String) -> void:
+	var seed_value := 0
+	if seed_text.is_empty():
+		seed_value = SeedSystem.splitmix64(Time.get_unix_time_from_system() * 1000.0)
+	else:
+		seed_value = SeedSystem.parse_seed(seed_text)
+	_close_pause_menu()
+	if not SavePaths.clear_root():
+		hud.set_hint("无法清空旧存档目录，新游戏未开始。")
+		return
+	OS.set_environment("PIGFAC_SEED", SeedSystem.seed_to_string(seed_value))
+	var reload_error := get_tree().reload_current_scene()
+	if reload_error != OK:
+		hud.set_hint("新游戏启动失败（错误码 %d）。" % reload_error)
 
 
 func apply_audio_muted(muted: bool) -> void:
@@ -809,6 +916,7 @@ func _ensure_interaction_range(cell: Vector2i) -> bool:
 	if active_pig == null:
 		return false
 	if _is_in_interaction_range(cell):
+		ensure_cell_chunk(cell)
 		return true
 	var distance := _cell_distance(grid.world_to_cell(active_pig.global_position), cell)
 	hud.set_hint(
@@ -1151,6 +1259,40 @@ func _use_hammer(cell: Vector2i, actor: Pig = null) -> void:
 	var user := actor if actor != null else active_pig
 	if user == null:
 		return
+	# 矿点：锤一下采 1 单位，采空即移除（amount 归零等价 removed）。
+	if world_objects.has_ore(cell):
+		var ore := world_objects.get_ore(cell)
+		var ore_id := int(ore.get("ore_id", 0))
+		var ore_item := world_objects.get_ore_item_id(ore_id)
+		if not user.inventory.can_add_item(ore_item, 1):
+			hud.set_hint("背包没有空位，无法装下%s。" % ItemDB.get_display_name(ore_item))
+			return
+		var hit_ore := world_objects.hit_ore(cell, 1)
+		var ore_name := world_objects.get_ore_name(ore_id)
+		user.inventory.add_item(ore_item, 1)
+		_play_sfx(hammer_sound, 0.94, 1.06, cell)
+		if bool(hit_ore.get("mined", false)):
+			hud.set_hint("采空了%s，获得 1 个%s。" % [ore_name, ItemDB.get_display_name(ore_item)])
+		else:
+			hud.set_hint("%s 还剩 %d 单位；获得 1 个%s。" % [
+				ore_name,
+				int(hit_ore.get("remaining", 0)),
+				ItemDB.get_display_name(ore_item),
+			])
+		return
+
+	# 石头/灌木：按耐久递减。
+	if world_objects.has_natural_block(cell):
+		var block := world_objects.get_natural_block(cell)
+		var kind := int(block.get("kind", 0))
+		var hit_block := world_objects.hit_natural_block(cell)
+		_play_sfx(hammer_sound, 0.92, 1.08, cell)
+		if bool(hit_block.get("destroyed", false)):
+			hud.set_hint("敲碎了%s。" % ("灌木" if kind == ChunkData.KIND_BUSH else "石头"))
+		else:
+			hud.set_hint("还需要敲 %d 下。" % int(hit_block.get("remaining", 0)))
+		return
+
 	var tree_root := world_objects.find_tree_root(cell)
 	if tree_root != WorldObjects.INVALID_CELL:
 		var remaining := world_objects.get_tree_remaining_hits(tree_root)
@@ -1515,6 +1657,7 @@ func _pickup_pig(pig: Pig, actor: Pig = null) -> void:
 		hud.set_hint("背包没有空位，无法把猪装进去。")
 		return
 
+	_mark_pig_chunk_dirty(grid.world_to_cell(pig.global_position))
 	pigs.erase(pig)
 	pig.stop_moving()
 	_disconnect_pig_inventory(pig)
@@ -1563,6 +1706,7 @@ func _place_pig(cell: Vector2i) -> void:
 	new_pig.set_selected(false)
 	pigs.append(new_pig)
 	_register_pig(new_pig)
+	_mark_pig_chunk_dirty(cell)
 	hud.set_hint(
 		"把 %s 放到了地上，它已经醒来，背包里的 %d 格物品也还在。"
 		% [new_pig.display_name, pig_inventory.get_used_slot_count()]

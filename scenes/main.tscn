@@ -1,4 +1,4 @@
-[gd_scene load_steps=16 format=3]
+[gd_scene load_steps=17 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/world_grid.gd" id="2_grid"]
@@ -15,6 +15,7 @@
 [ext_resource type="Script" path="res://scripts/stun_burst.gd" id="13_stun"]
 [ext_resource type="Script" path="res://scripts/behavior_ui.gd" id="14_behavior"]
 [ext_resource type="Script" path="res://scripts/behavior_area_overlay.gd" id="15_overlay"]
+[ext_resource type="Script" path="res://scripts/worldgen/chunk_manager.gd" id="16_chunks"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1_main")
@@ -43,6 +44,9 @@ script = ExtResource("13_stun")
 
 [node name="BehaviorAreaOverlay" type="Node2D" parent="."]
 script = ExtResource("15_overlay")
+
+[node name="ChunkManager" type="Node" parent="."]
+script = ExtResource("16_chunks")
 
 [node name="ChopSound" type="AudioStreamPlayer" parent="."]
 volume_db = -4.0

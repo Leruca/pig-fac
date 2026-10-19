@@ -136,13 +136,7 @@ func _draw_detail() -> void:
 				local_x * DETAIL_CELL_METERS + sample_offset,
 				local_y * DETAIL_CELL_METERS + sample_offset
 			)
-			var color := Color(0.10, 0.16, 0.08, 1.0)
-			if game.farm.is_tilled(sample):
-				color = Color(0.33, 0.23, 0.13, 1.0)
-			if game.farm.has_crop(sample):
-				color = Color(0.22, 0.45, 0.16, 1.0)
-			if game.world_objects.is_blocked(sample):
-				color = Color(0.13, 0.24, 0.11, 1.0)
+			var color := _detail_cell_color(sample)
 			var rect := Rect2(
 				_map_rect.position + Vector2(float(local_x), float(local_y)) * cell_px,
 				Vector2.ONE * cell_px
@@ -167,6 +161,34 @@ func _draw_detail() -> void:
 	if _map_rect.has_point(camera_point):
 		draw_line(camera_point + Vector2(-7.0, 0.0), camera_point + Vector2(7.0, 0.0), Color(0.95, 0.98, 0.83, 0.9), 1.2)
 		draw_line(camera_point + Vector2(0.0, -7.0), camera_point + Vector2(0.0, 7.0), Color(0.95, 0.98, 0.83, 0.9), 1.2)
+
+
+## 细节地图配色：地形（ChunkManager）→ 农田 → 作物 → 矿/障碍。
+func _detail_cell_color(sample: Vector2i) -> Color:
+	var terrain_type := -1
+	if game.chunk_manager != null:
+		terrain_type = game.chunk_manager.get_cell_terrain(sample)
+	var color := Color(0.055, 0.080, 0.045, 1.0)
+	match terrain_type:
+		TerrainTypes.WATER:
+			color = Color(0.16, 0.32, 0.48, 1.0)
+		TerrainTypes.SAND:
+			color = Color(0.50, 0.45, 0.32, 1.0)
+		TerrainTypes.DIRT:
+			color = Color(0.33, 0.25, 0.15, 1.0)
+		TerrainTypes.GRASS:
+			color = Color(0.16, 0.27, 0.12, 1.0)
+		_:
+			color = Color(0.055, 0.080, 0.045, 1.0)
+	if game.farm.is_tilled(sample):
+		color = Color(0.33, 0.23, 0.13, 1.0)
+	if game.farm.has_crop(sample):
+		color = Color(0.22, 0.45, 0.16, 1.0)
+	if game.world_objects.has_ore(sample):
+		color = Color(0.75, 0.53, 0.18, 1.0)
+	elif game.world_objects.is_blocked(sample):
+		color = Color(0.13, 0.24, 0.11, 1.0)
+	return color
 
 
 func _draw_big() -> void:

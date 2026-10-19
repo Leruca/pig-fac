@@ -1,13 +1,17 @@
 class_name SaveManager
 extends RefCounted
-## 单存档、按大地图区块拆分的存档系统。
-## user://saves/main/global.json
-## user://saves/main/blocks/block_x_y.json
+## 单存档：global.json（全局态）+ blocks/x_y.json（区块 overrides 差分）。
+##
+## 与旧版的差别（§7）：
+## - global.json 增加 "seed"（**字符串**，64 位整数直接存 JSON 会丢精度）与
+##   "worldgen_version"；visited_blocks / next_born_pig_index 等全局态照旧全量写。
+## - **不再 _clear_block_files() 全删**：保存遍历 dirty 集合，overrides 为空则删文件
+##   （玩家撤销全部改动 → 回到生成一致状态 → 文件必须消失，否则旧改动会复活）。
+## - 读档：先**全部解析成功**再清空重建（安全性不变），但重生成分批进行：
+##   只急切恢复相机周围 N 块，其余标记"待惰性重生成"，走与运行时同一套分片管线。
 
-const VERSION := 1
-const SAVE_ROOT := "user://saves/main"
-const BLOCK_ROOT := "user://saves/main/blocks"
-const GLOBAL_FILE := "user://saves/main/global.json"
+const VERSION := 2
+const LEGACY_SEED_TEXT := "legacy-v1"
 const PIG_SCENE := preload("res://scenes/pig.tscn")
 
 var main: Node
@@ -18,11 +22,44 @@ func setup(main_node: Node) -> void:
 
 
 func save_path() -> String:
-	return ProjectSettings.globalize_path(SAVE_ROOT)
+	return ProjectSettings.globalize_path(SavePaths.root())
 
 
 func has_save() -> bool:
-	return FileAccess.file_exists(GLOBAL_FILE)
+	return FileAccess.file_exists(SavePaths.global_file())
+
+
+## 当前存档是否带有种子。除了 global.json，还支持首次启动时先写入的 seed.txt，
+## 避免玩家没手动保存就退出后换一张地图。
+func has_saved_seed() -> bool:
+	var global_path := SavePaths.global_file()
+	if FileAccess.file_exists(global_path):
+		var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(global_path))
+		if parsed is Dictionary and (parsed as Dictionary).has("seed"):
+			return true
+	return FileAccess.file_exists(SavePaths.seed_file())
+
+
+## 当前存档的种子（无档时返回 0，调用方应先用 has_saved_seed()）。
+func stored_seed() -> int:
+	var global_path := SavePaths.global_file()
+	if FileAccess.file_exists(global_path):
+		var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(global_path))
+		if parsed is Dictionary and (parsed as Dictionary).has("seed"):
+			return SeedSystem.parse_seed(str(parsed.get("seed", "0")))
+	if FileAccess.file_exists(SavePaths.seed_file()):
+		return SeedSystem.parse_seed(FileAccess.get_file_as_string(SavePaths.seed_file()).strip_edges())
+	return 0
+
+
+## 首次生成世界时立刻落盘种子；这不是完整存档，只是让下次启动仍进入同一张地图。
+func persist_seed(seed_value: int) -> bool:
+	if not SavePaths.ensure_dirs():
+		return false
+	return SavePaths.atomic_write_text(
+		SavePaths.seed_file(),
+		SeedSystem.seed_to_string(seed_value)
+	)
 
 
 func save_game() -> Dictionary:
@@ -30,140 +67,125 @@ func save_game() -> Dictionary:
 		return {"ok": false, "message": "游戏尚未初始化。"}
 	if not _ensure_folders():
 		return {"ok": false, "message": "无法创建存档目录。"}
-	_clear_block_files()
-	var blocks: Dictionary = {}
-	for pig_value in main.pigs:
-		var pig: Pig = pig_value
-		if pig == null:
-			continue
-		var pig_cell: Vector2i = main.grid.world_to_cell(pig.global_position)
-		var bucket := _bucket(blocks, main.block_of_cell(pig_cell))
-		bucket["pigs"].append(_encode_pig(pig))
-	var farm: Farm = main.farm
-	for cell_value in farm.plots.keys():
-		var cell: Vector2i = cell_value
-		var plot: Dictionary = farm.plots[cell]
-		var bucket := _bucket(blocks, main.block_of_cell(cell))
-		bucket["farm"].append({
-			"cell": _encode_value(cell),
-			"crop_id": str(plot.get("crop_id", "")),
-			"stage": int(plot.get("stage", 0)),
-			"elapsed": float(plot.get("elapsed", 0.0)),
-		})
+	var manager: ChunkManager = main.chunk_manager
 	var world: WorldObjects = main.world_objects
-	for root_value in world.tree_roots:
-		var root: Vector2i = root_value
-		var bucket := _bucket(blocks, main.block_of_cell(root))
-		bucket["trees"].append({
-			"root": _encode_value(root),
-			"hits": world.get_tree_remaining_hits(root),
-		})
-	for cell_value in world.logs.keys():
-		var cell: Vector2i = cell_value
-		_bucket(blocks, main.block_of_cell(cell))["logs"].append(_encode_value(cell))
-	for cell_value in world.planks.keys():
-		var cell: Vector2i = cell_value
-		_bucket(blocks, main.block_of_cell(cell))["planks"].append(_encode_value(cell))
-	for cell_value in world.saplings.keys():
-		var cell: Vector2i = cell_value
-		var data: Dictionary = world.saplings[cell]
-		_bucket(blocks, main.block_of_cell(cell))["saplings"].append({
-			"cell": _encode_value(cell),
-			"stage": int(data.get("stage", 0)),
-			"elapsed": float(data.get("elapsed", 0.0)),
-		})
-	for cell_value in world.chests.keys():
-		var cell: Vector2i = cell_value
-		var inventory: Inventory = world.chests[cell]
-		_bucket(blocks, main.block_of_cell(cell))["chests"].append({
-			"cell": _encode_value(cell),
-			"inventory": _encode_inventory(inventory),
-		})
-	for cell_value in world.fences.keys():
-		var cell: Vector2i = cell_value
-		_bucket(blocks, main.block_of_cell(cell))["fences"].append(_encode_value(cell))
-	for root_value in world.nests.keys():
-		var root: Vector2i = root_value
-		var nest: Dictionary = world.nests[root]
-		var inventory: Inventory = nest.get("inventory")
-		_bucket(blocks, main.block_of_cell(root))["nests"].append({
-			"root": _encode_value(root),
-			"inventory": _encode_inventory(inventory),
-			"progress": float(nest.get("progress", 0.0)),
-			"active": bool(nest.get("active", false)),
-		})
+	var farm: Farm = main.farm
 
-	for key in blocks.keys():
-		var block_data: Dictionary = blocks[key]
-		if not _write_json(
-			"%s/%s.json" % [BLOCK_ROOT, str(block_data["key"])],
-			block_data
-		):
-			return {"ok": false, "message": "写入区块存档失败：%s" % str(block_data["key"])}
-
+	# 1) 落盘所有 dirty 块。
+	#    猪是**全局态**（与 _visited_blocks / _next_born_pig_index 同类），统一写进 global.json，
+	#    不再按块分桶：曾经分桶既会用「只有 pigs 字段」的 payload 覆盖掉整块文件（丢档），
+	#    又会在猪跨块移动时被两个块各记一次（读档重复生成）。
+	var written := 0
+	var deleted := 0
+	for chunk in manager.dirty_chunks():
+		# 未加载的脏块（例如树苗跨块成熟把邻块标脏）必须先生成再落盘，否则改动会被丢掉。
+		if not manager.is_loaded(chunk):
+			manager.ensure_chunk_now(chunk)
+		var result := manager.flush_chunk(chunk, farm.plots)
+		if not bool(result.get("ok", false)):
+			return {"ok": false, "message": "写入区块存档失败：%s" % str(chunk)}
+		if bool(result.get("deleted", false)):
+			deleted += 1
+		else:
+			written += 1
+	# 4) 全局文件
 	var visited: Array = []
 	for block_value in main._visited_blocks.keys():
 		var block: Vector2i = block_value
 		visited.append([block.x, block.y])
 	var camera_position: Vector2 = main.camera.global_position
+	var pigs_global: Array = []
+	for pig_value in main.pigs:
+		var pig: Pig = pig_value
+		if pig != null:
+			pigs_global.append(_encode_pig(pig))
 	var global_data := {
 		"version": VERSION,
-		"camera": _encode_value(camera_position),
+		"seed": SeedSystem.seed_to_string(manager.get_seed()),
+		"pigs": pigs_global,
+		"worldgen_version": manager.get_worldgen_version(),
+		"camera": SaveCodec.encode(camera_position),
 		"zoom": float(main._map_zoom),
 		"visited_blocks": visited,
 		"audio_muted": bool(main.is_audio_muted()),
 		"next_born_pig_index": int(main.world_objects._next_born_pig_index),
+		"tick": int(Time.get_ticks_msec()),
 	}
-	if not _write_json(GLOBAL_FILE, global_data):
+	if not _write_json(SavePaths.global_file(), global_data):
 		return {"ok": false, "message": "写入 global.json 失败。"}
+	persist_seed(manager.get_seed())
+	manager.clear_dirty()
 	return {
 		"ok": true,
-		"message": "已保存 %d 个区块，%d 只猪。" % [blocks.size(), main.pigs.size()],
+		"message": "已保存 %d 个区块（%d 删除/回归，%d 只猪）。" % [written, deleted, main.pigs.size()],
 	}
 
 
 func load_game() -> Dictionary:
 	if main == null:
 		return {"ok": false, "message": "游戏尚未初始化。"}
-	if not FileAccess.file_exists(GLOBAL_FILE):
+	if not FileAccess.file_exists(SavePaths.global_file()):
 		return {"ok": false, "message": "还没有存档。"}
-	var global_text := FileAccess.get_file_as_string(GLOBAL_FILE)
-	var global_value: Variant = JSON.parse_string(global_text)
+	var global_value: Variant = JSON.parse_string(FileAccess.get_file_as_string(SavePaths.global_file()))
 	if not (global_value is Dictionary):
 		return {"ok": false, "message": "global.json 无法解析。"}
 	var global: Dictionary = global_value
-	if int(global.get("version", 0)) != VERSION:
-		return {"ok": false, "message": "存档版本不匹配。"}
+	var version := int(global.get("version", 0))
+	if version < 1 or version > VERSION:
+		return {"ok": false, "message": "存档版本不匹配（%d，期望 %d）。" % [version, VERSION]}
+	var legacy_save := version == 1
 
-	var block_files: Array[String] = []
-	var block_dir := DirAccess.open(BLOCK_ROOT)
-	if block_dir == null:
-		return {"ok": false, "message": "没有区块存档目录。"}
-	for file_name in block_dir.get_files():
-		if file_name.ends_with(".json"):
-			block_files.append(file_name)
-	block_files.sort()
+	# 1) 先全部解析成功（失败时不动内存状态）。
+	var block_result := ChunkStore.read_all_blocks(legacy_save)
+	if not bool(block_result.get("ok", false)):
+		return {"ok": false, "message": str(block_result.get("message", "区块文件读取失败。"))}
+	var payloads: Dictionary = block_result["blocks"]
+	var legacy_payloads: Dictionary = payloads.duplicate(true)
 
-	var block_payloads: Array[Dictionary] = []
-	for file_name in block_files:
-		var text := FileAccess.get_file_as_string("%s/%s" % [BLOCK_ROOT, file_name])
-		var value: Variant = JSON.parse_string(text)
-		if not (value is Dictionary):
-			return {"ok": false, "message": "区块文件无法解析：%s" % file_name}
-		block_payloads.append(value)
+	# 1.5) 版本迁移（迁移式烘焙，§2.4）：旧档的 overrides 用**新版生成器**重算基底后重新落地。
+	#     只在 worldgen_version 不一致时发生；迁移结果立刻写盘，之后按新版走。
+	var seed_value := SeedSystem.parse_seed(str(global.get("seed", "0")))
+	if legacy_save:
+		# v1 没有种子。用一个固定的 legacy 种子迁移，保证同一份旧档每次迁移
+		# 都落到同一张新地图；旧对象占用的格子已由 ChunkStore 写成 removed_*。
+		seed_value = SeedSystem.parse_seed(LEGACY_SEED_TEXT)
+	elif seed_value == 0:
+		seed_value = int(global.get("seed", 0))
+	var stored_worldgen_version := int(global.get("worldgen_version", 0))
+	var current_version: int = main.worldgen_config.worldgen_version
+	if stored_worldgen_version != 0 and stored_worldgen_version != current_version:
+		var migration_generator := WorldGenerator.new(main.worldgen_config, seed_value)
+		var migration := ChunkMigration.migrate_and_write(
+			payloads, stored_worldgen_version, current_version, migration_generator
+		)
+		if not bool(migration.get("ok", false)):
+			return {"ok": false, "message": str(migration.get("message", "版本迁移失败。"))}
+		payloads = migration["migrated"]
+		print("[WorldGen] %s" % str(migration.get("message", "")))
 
+	# 2) 再清空重建。
 	_clear_runtime()
+	main.chunk_manager.setup(main.worldgen_config, seed_value, main.world_objects, main._pig_chunk_callable())
+	main.chunk_manager.farm_plots = main.farm.plots
 	main.world_objects._next_born_pig_index = int(global.get("next_born_pig_index", 4))
 
-	for block_data in block_payloads:
-		_load_block(block_data)
+	# 3) 猪：优先读全局列表；旧档（pigs 还在块文件里）走兼容分支。
+	var pig_entries: Array = global.get("pigs", [])
+	if pig_entries.is_empty():
+		for payload in payloads.values():
+			for pig_value in payload.get("overrides", {}).get("pigs", []):
+				if pig_value is Dictionary:
+					pig_entries.append(pig_value)
+	for pig_value in pig_entries:
+		if pig_value is Dictionary:
+			_load_pig(pig_value)
 
 	main._visited_blocks.clear()
 	for pair in global.get("visited_blocks", []):
 		if pair is Array and pair.size() >= 2:
 			main._visited_blocks[Vector2i(int(pair[0]), int(pair[1]))] = true
 
-	var camera_position: Vector2 = _decode_value(global.get("camera", [0.0, 0.0]))
+	var camera_position: Vector2 = SaveCodec.decode(global.get("camera", [0.0, 0.0]))
 	var zoom := clampf(float(global.get("zoom", 1.0)), 0.1, 4.0)
 	main._map_zoom = zoom
 	main.camera.zoom = Vector2.ONE * zoom
@@ -171,88 +193,118 @@ func load_game() -> Dictionary:
 	main._free_camera_position = camera_position
 	main._camera_offset = Vector2.ZERO
 	main._last_pig_cell = Vector2i(2147483647, 2147483647)
-	main._mark_visible_blocks()
 	main.apply_audio_muted(bool(global.get("audio_muted", false)))
 	main.hud.set_map_zoom(zoom)
-	main.hud.set_hint("存档已读取：%d 个区块，%d 只猪。" % [block_payloads.size(), main.pigs.size()])
+
+	# 4) 家园块（有猪/有改动的块）急切同步恢复；其余走惰性分帧管线。
+	var home_chunks: Array[Vector2i] = []
+	for chunk_key in payloads.keys():
+		var chunk: Vector2i = chunk_key
+		var overrides: Dictionary = payloads[chunk].get("overrides", {})
+		if overrides.has("pigs") and not (overrides["pigs"] as Array).is_empty():
+			home_chunks.append(chunk)
+	var eager_radius: int = main.worldgen_config.eager_load_radius_chunks
+	var center_chunk: Vector2i = main.chunk_manager.chunk_of_cell(
+		main.grid.world_to_cell(camera_position)
+	)
+	for chunk_key in payloads.keys():
+		var chunk: Vector2i = chunk_key
+		var distance := maxi(absi(chunk.x - center_chunk.x), absi(chunk.y - center_chunk.y))
+		if distance <= eager_radius:
+			home_chunks.append(chunk)
+	for chunk in home_chunks:
+		if not payloads.has(chunk):
+			continue
+		main.chunk_manager.ensure_chunk_now(chunk)
+		main.chunk_manager.apply_overrides(chunk, payloads[chunk])
+		payloads.erase(chunk)
+	# 剩下的登记为"待惰性重生成"。
+	main.chunk_manager.prime_restore(payloads)
+	main.chunk_manager.resume_load(main.grid.world_to_cell(camera_position))
 	main.farm.queue_redraw()
 	main.world_objects.queue_redraw()
+	main._mark_visible_blocks()
+	if legacy_save:
+		var migration_ok := _persist_legacy_migration(
+			legacy_payloads, seed_value, current_version
+		)
+		if not migration_ok:
+			return {"ok": false, "message": "v1 存档已读取，但迁移写盘失败；请检查磁盘权限。"}
+	main.hud.set_hint(
+		"存档已读取：%d 个区块待按需恢复，%d 只猪。"
+		% [payloads.size(), main.pigs.size()]
+	)
 	return {
 		"ok": true,
-		"message": "读取成功：%d 个区块，%d 只猪。" % [block_payloads.size(), main.pigs.size()],
+		"message": "读取成功：%d 个区块待按需恢复，%d 只猪。" % [payloads.size(), main.pigs.size()],
 	}
 
 
-func _load_block(block_data: Dictionary) -> void:
-	var world: WorldObjects = main.world_objects
-	var farm: Farm = main.farm
-	for plot_value in block_data.get("farm", []):
-		if not (plot_value is Dictionary):
-			continue
-		var plot: Dictionary = plot_value
-		var cell: Vector2i = _decode_value(plot.get("cell", [0, 0]))
-		farm.plots[cell] = {
-			"crop_id": str(plot.get("crop_id", "")),
-			"stage": int(plot.get("stage", 0)),
-			"elapsed": float(plot.get("elapsed", 0.0)),
-		}
-	for tree_value in block_data.get("trees", []):
-		if not (tree_value is Dictionary):
-			continue
-		var tree: Dictionary = tree_value
-		var root: Vector2i = _decode_value(tree.get("root", [0, 0]))
-		world.add_tree(root)
-		world._tree_hits[root] = int(tree.get("hits", 3))
-	for cell_value in block_data.get("logs", []):
-		world.logs[_decode_value(cell_value)] = true
-	for cell_value in block_data.get("planks", []):
-		world.planks[_decode_value(cell_value)] = true
-	for cell_value in block_data.get("fences", []):
-		world.fences[_decode_value(cell_value)] = true
-	for sapling_value in block_data.get("saplings", []):
-		if not (sapling_value is Dictionary):
-			continue
-		var sapling: Dictionary = sapling_value
-		var cell: Vector2i = _decode_value(sapling.get("cell", [0, 0]))
-		world.saplings[cell] = {
-			"stage": int(sapling.get("stage", 0)),
-			"elapsed": float(sapling.get("elapsed", 0.0)),
-		}
-	for chest_value in block_data.get("chests", []):
-		if not (chest_value is Dictionary):
-			continue
-		var chest: Dictionary = chest_value
-		var cell: Vector2i = _decode_value(chest.get("cell", [0, 0]))
-		world.chests[cell] = _decode_inventory(chest.get("inventory", {}))
-	for nest_value in block_data.get("nests", []):
-		if not (nest_value is Dictionary):
-			continue
-		var nest: Dictionary = nest_value
-		var root: Vector2i = _decode_value(nest.get("root", [0, 0]))
-		world.nests[root] = {
-			"inventory": _decode_inventory(nest.get("inventory", {}), 4),
-			"progress": float(nest.get("progress", 0.0)),
-			"active": bool(nest.get("active", false)),
-		}
-	for pig_value in block_data.get("pigs", []):
-		if pig_value is Dictionary:
-			_load_pig(pig_value)
+## v1 → v2：把旧块文件按新格式写回，并补上 seed / worldgen_version / 全局猪列表。
+## 只在 load 时执行一次；失败会返回 false，但不会清空玩家旧文件（旧文件此时已被新块覆盖，
+## 因此失败提示必须明确）。
+func _persist_legacy_migration(
+	legacy_payloads: Dictionary,
+	seed_value: int,
+	worldgen_version: int
+) -> bool:
+	for chunk_value in legacy_payloads.keys():
+		var chunk: Vector2i = chunk_value
+		var payload: Dictionary = legacy_payloads[chunk]
+		var overrides: Dictionary = payload.get("overrides", {}).duplicate(true)
+		# 猪现在是 global 态，不再写进区块文件。
+		overrides.erase("pigs")
+		var write_result := ChunkStore.write_block(chunk, worldgen_version, overrides)
+		if not bool(write_result.get("ok", false)):
+			return false
+	var visited: Array = []
+	for block_value in main._visited_blocks.keys():
+		var block: Vector2i = block_value
+		visited.append([block.x, block.y])
+	var pigs_global: Array = []
+	for pig_value in main.pigs:
+		var pig: Pig = pig_value
+		if pig != null:
+			pigs_global.append(_encode_pig(pig))
+	var global_data := {
+		"version": VERSION,
+		"seed": SeedSystem.seed_to_string(seed_value),
+		"pigs": pigs_global,
+		"worldgen_version": worldgen_version,
+		"camera": SaveCodec.encode(main.camera.global_position),
+		"zoom": float(main._map_zoom),
+		"visited_blocks": visited,
+		"audio_muted": bool(main.is_audio_muted()),
+		"next_born_pig_index": int(main.world_objects._next_born_pig_index),
+		"tick": int(Time.get_ticks_msec()),
+	}
+	if not _write_json(SavePaths.global_file(), global_data):
+		return false
+	persist_seed(seed_value)
+	return true
+
+
+## 新档：写入种子与版本（只调用一次，之后种子固定）。
+func init_new_game(seed_value: int) -> void:
+	main.worldgen_config = WorldGenConfig.load_default()
+	main.chunk_manager.setup(main.worldgen_config, seed_value, main.world_objects, main._pig_chunk_callable())
+	main.chunk_manager.farm_plots = main.farm.plots
 
 
 func _load_pig(data: Dictionary) -> void:
 	var pig: Pig = PIG_SCENE.instantiate()
 	pig.name = "LoadedPig%d" % (main.pigs.size() + 1)
 	main.add_child(pig)
-	var position: Vector2 = _decode_value(data.get("position", [0.0, 0.0]))
+	var position: Vector2 = SaveCodec.decode(data.get("position", [0.0, 0.0]))
 	pig.global_position = position
-	var cell: Vector2i = _decode_value(data.get("cell", [0, 0]))
+	var cell: Vector2i = SaveCodec.decode(data.get("cell", [0, 0]))
 	pig.target_cell = cell
 	pig.display_name = str(data.get("name", "猪"))
-	var rgb: Vector3i = _decode_value(data.get("rgb", [255, 170, 190]))
-	var tint: Color = _decode_value(data.get("tint", [1.0, 0.67, 0.75, 1.0]))
+	var rgb: Vector3i = SaveCodec.decode(data.get("rgb", [255, 170, 190]))
+	var tint: Color = SaveCodec.decode(data.get("tint", [1.0, 0.67, 0.75, 1.0]))
 	pig.set_identity(rgb, tint)
-	pig.set_inventory(_decode_inventory(data.get("inventory", {})))
-	var behavior_value: Variant = _decode_value(data.get("behavior_program", []))
+	pig.set_inventory(SaveCodec.decode_inventory(data.get("inventory", {})))
+	var behavior_value: Variant = SaveCodec.decode(data.get("behavior_program", []))
 	pig.behavior_program.clear()
 	if behavior_value is Array:
 		for module in behavior_value:
@@ -291,6 +343,7 @@ func _clear_runtime() -> void:
 		pig.queue_free()
 	main.pigs.clear()
 	main.farm.plots.clear()
+	main.chunk_manager.clear_all()
 	var world: WorldObjects = main.world_objects
 	world.tree_roots.clear()
 	world.logs.clear()
@@ -299,7 +352,14 @@ func _clear_runtime() -> void:
 	world.chests.clear()
 	world.fences.clear()
 	world.nests.clear()
+	world.ores.clear()
+	world.natural_blocks.clear()
 	world._tree_hits.clear()
+	world._removed_trees.clear()
+	world._removed_ores.clear()
+	world._tree_refs.clear()
+	world._materialized.clear()
+	world.clear_indexes()
 	main._visited_blocks.clear()
 
 
@@ -307,156 +367,23 @@ func _encode_pig(pig: Pig) -> Dictionary:
 	var cell: Vector2i = main.grid.world_to_cell(pig.global_position)
 	return {
 		"name": pig.display_name,
-		"position": _encode_value(pig.global_position),
-		"cell": _encode_value(cell),
-		"target_cell": _encode_value(pig.target_cell),
-		"rgb": _encode_value(pig.pig_rgb),
-		"tint": _encode_value(pig.body_tint),
+		"position": SaveCodec.encode(pig.global_position),
+		"cell": SaveCodec.encode(cell),
+		"target_cell": SaveCodec.encode(pig.target_cell),
+		"rgb": SaveCodec.encode(pig.pig_rgb),
+		"tint": SaveCodec.encode(pig.body_tint),
 		"is_stunned": pig.is_stunned,
-		"inventory": _encode_inventory(pig.inventory),
-		"behavior_program": _encode_value(pig.behavior_program),
+		"inventory": SaveCodec.encode_inventory(pig.inventory),
+		"behavior_program": SaveCodec.encode(pig.behavior_program),
 		"behavior_running": pig.behavior_running,
 		"behavior_module_index": pig.behavior_module_index,
 		"behavior_area_index": pig.behavior_area_index,
 	}
 
 
-func _bucket(blocks: Dictionary, block: Vector2i) -> Dictionary:
-	var key := "%d_%d" % [block.x, block.y]
-	if not blocks.has(key):
-		blocks[key] = {
-			"key": key,
-			"block": [block.x, block.y],
-			"pigs": [],
-			"farm": [],
-			"trees": [],
-			"logs": [],
-			"planks": [],
-			"saplings": [],
-			"chests": [],
-			"fences": [],
-			"nests": [],
-		}
-	return blocks[key]
-
-
-func _encode_value(value: Variant) -> Variant:
-	match typeof(value):
-		TYPE_VECTOR2:
-			return {"$vec2": [value.x, value.y]}
-		TYPE_VECTOR2I:
-			return {"$vec2i": [value.x, value.y]}
-		TYPE_VECTOR3I:
-			return {"$vec3i": [value.x, value.y, value.z]}
-		TYPE_RECT2I:
-			return {"$rect2i": [value.position.x, value.position.y, value.size.x, value.size.y]}
-		TYPE_COLOR:
-			return {"$color": [value.r, value.g, value.b, value.a]}
-		TYPE_DICTIONARY:
-			var out := {}
-			for key in value.keys():
-				out[str(key)] = _encode_value(value[key])
-			return out
-		TYPE_ARRAY:
-			var out_array := []
-			for item in value:
-				out_array.append(_encode_value(item))
-			return out_array
-		_:
-			return value
-
-
-func _decode_value(value: Variant) -> Variant:
-	if value is Dictionary:
-		if value.has("$vec2"):
-			var pair: Array = value["$vec2"]
-			return Vector2(float(pair[0]), float(pair[1]))
-		if value.has("$vec2i"):
-			var pair: Array = value["$vec2i"]
-			return Vector2i(int(pair[0]), int(pair[1]))
-		if value.has("$vec3i"):
-			var triple: Array = value["$vec3i"]
-			return Vector3i(int(triple[0]), int(triple[1]), int(triple[2]))
-		if value.has("$rect2i"):
-			var rect: Array = value["$rect2i"]
-			return Rect2i(int(rect[0]), int(rect[1]), int(rect[2]), int(rect[3]))
-		if value.has("$color"):
-			var rgba: Array = value["$color"]
-			return Color(float(rgba[0]), float(rgba[1]), float(rgba[2]), float(rgba[3]))
-		var out := {}
-		for key in value.keys():
-			out[key] = _decode_value(value[key])
-		return out
-	if value is Array:
-		var out_array := []
-		for item in value:
-			out_array.append(_decode_value(item))
-		return out_array
-	return value
-
-
-func _encode_inventory(inventory: Inventory) -> Dictionary:
-	if inventory == null:
-		return {"slot_count": 40, "slots": []}
-	var slots: Array = []
-	for index in inventory.slot_count:
-		var slot := inventory.get_slot(index)
-		if slot.is_empty():
-			slots.append({})
-			continue
-		var encoded := {}
-		for key in slot.keys():
-			var value: Variant = slot[key]
-			if value is Inventory:
-				encoded[key] = _encode_inventory(value)
-			else:
-				encoded[key] = _encode_value(value)
-		slots.append(encoded)
-	return {"slot_count": inventory.slot_count, "slots": slots}
-
-
-func _decode_inventory(value: Variant, default_slots: int = 40) -> Inventory:
-	var data: Dictionary = value if value is Dictionary else {}
-	var slot_count := int(data.get("slot_count", default_slots))
-	var inventory := Inventory.new(slot_count)
-	var slots: Array = data.get("slots", [])
-	for index in mini(slots.size(), inventory.slot_count):
-		var source: Variant = slots[index]
-		if not (source is Dictionary) or source.is_empty():
-			continue
-		var decoded := {}
-		for key in source.keys():
-			var item: Variant = source[key]
-			if str(key) == "pig_inventory" and item is Dictionary:
-				decoded[key] = _decode_inventory(item)
-			else:
-				decoded[key] = _decode_value(item)
-		inventory.slots[index] = decoded
-	return inventory
-
-
 func _ensure_folders() -> bool:
-	var root := DirAccess.open("user://")
-	if root == null:
-		return false
-	if root.make_dir_recursive("saves/main/blocks") != OK:
-		return false
-	return true
-
-
-func _clear_block_files() -> void:
-	var dir := DirAccess.open(BLOCK_ROOT)
-	if dir == null:
-		return
-	for file_name in dir.get_files():
-		if file_name.ends_with(".json"):
-			dir.remove(file_name)
+	return SavePaths.ensure_dirs()
 
 
 func _write_json(path: String, data: Dictionary) -> bool:
-	var file := FileAccess.open(path, FileAccess.WRITE)
-	if file == null:
-		return false
-	file.store_string(JSON.stringify(data, "\t"))
-	file.close()
-	return true
+	return SavePaths.atomic_write_text(path, JSON.stringify(data, "\t"))

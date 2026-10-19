@@ -1,0 +1,121 @@
+{
+  "worldgen_version": 1,
+  "chunk_size": 255,
+  "chunk_radius": 127,
+  "spawn_safe_radius_cells": 24,
+  "spawn_reserved_cells": [
+    [
+      0,
+      0
+    ],
+    [
+      4,
+      0
+    ],
+    [
+      8,
+      0
+    ]
+  ],
+  "spawn_reserved_footprints": [
+    {
+      "root": [
+        5,
+        -2
+      ],
+      "size": 3
+    }
+  ],
+  "budgets": {
+    "gen_ms_per_frame": 8,
+    "gen_rows_per_slice": 32,
+    "ensure_radius_chunks": 1,
+    "keep_radius_chunks": 2,
+    "pig_residency_radius_chunks": 1,
+    "unload_eval_seconds": 1,
+    "eager_load_radius_chunks": 1
+  },
+  "bench": {
+    "chunk_count": 100,
+    "avg_ms_max": 60,
+    "p99_ms_max": 150
+  },
+  "layers": {
+    "terrain": {
+      "salt": "t3rra1n",
+      "noise_scale_q16": 1500,
+      "octaves": 2,
+      "water_threshold": 0.16,
+      "sand_threshold": 0.22,
+      "dirt_threshold": 0.3
+    },
+    "eco": {
+      "salt": "ec0l0gy",
+      "bush_chance_millis": 64,
+      "bush_hp": 1,
+      "tuft_chance_millis": 0,
+      "flower_chance_millis": 0
+    },
+    "obstacle": {
+      "salt": "0bstacl",
+      "cell_chunk_cells": 8,
+      "tree_chance_millis": 384,
+      "rock_chance_millis": 256,
+      "tree_hp": [
+        3,
+        5
+      ],
+      "rock_hp": [
+        1,
+        2
+      ],
+      "tree_footprint": 3,
+      "tree_ground_pad_millis": 640
+    },
+    "ore": {
+      "salt": "0rev31n",
+      "region_chunks": 4,
+      "vein_count_per_region": [
+        32,
+        64
+      ],
+      "min_vein_cells": 3,
+      "types": [
+        {
+          "id": "copper",
+          "weight": 60,
+          "depth_bias_millis": 0,
+          "vein_size": [
+            6,
+            14
+          ],
+          "min_cell_amount": 2,
+          "max_cell_amount": 4
+        },
+        {
+          "id": "iron",
+          "weight": 30,
+          "depth_bias_millis": 300,
+          "vein_size": [
+            4,
+            9
+          ],
+          "min_cell_amount": 2,
+          "max_cell_amount": 3
+        },
+        {
+          "id": "gold",
+          "weight": 10,
+          "depth_bias_millis": 600,
+          "vein_size": [
+            3,
+            6
+          ],
+          "min_cell_amount": 1,
+          "max_cell_amount": 2
+        }
+      ],
+      "depth_bias_radius_cells": 600
+    }
+  }
+}

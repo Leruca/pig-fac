@@ -2,8 +2,10 @@ class_name WorldGrid
 extends Node2D
 ## 无限格子地图的视觉层。
 ##
-## 不存在固定地图尺寸：这里每帧只绘制摄像机可见范围内的格子，因此格子可以
-## 一直向四周延伸。后续接入区块数据、地形或寻路时，可以沿用同一套格子坐标。
+## 不存在固定地图尺寸：每帧只绘制摄像机可见范围内的格子，因此格子可以一直向四周
+## 延伸。地形底色来自 ChunkManager 的 TerrainLayer（未生成的区块显示"未探索"底色，
+## 而不是错误的水/陆地信息）；视觉装饰（草丛/小花）**不物化**，绘制时用
+## SeedSystem.hash2(seed, eco_salt, x, y) 即时求值 —— 内存 0 开销，且带种子。
 
 @export_range(16, 96, 1) var cell_size: int = 36
 
@@ -12,10 +14,28 @@ const GRASS_B := Color("#92BD72")
 const GRID_LINE := Color(0.29, 0.43, 0.22, 0.25)
 const TUFTS := Color(0.26, 0.42, 0.20, 0.40)
 const FLOWERS := Color("#F4DE8A")
+## 未生成区块的底色（比草地暗，明确表示"还没有地形数据"）。
+const UNKNOWN_A := Color("#7E9C66")
+const UNKNOWN_B := Color("#77935F")
+
+## 由 Main 注入。
+var chunk_manager: ChunkManager
+var worldgen_config: WorldGenConfig
+var seed_value: int = 0
+
+var _decor_cache: Dictionary = {}
 
 
 func _ready() -> void:
 	z_index = -20
+
+
+func setup(manager: ChunkManager, config: WorldGenConfig, seed_in: int) -> void:
+	chunk_manager = manager
+	worldgen_config = config
+	seed_value = seed_in
+	_decor_cache.clear()
+	queue_redraw()
 
 
 func _process(_delta: float) -> void:
@@ -58,15 +78,19 @@ func _draw() -> void:
 	var last_cell := world_to_cell(max_world) + Vector2i.ONE
 	var cell_extent := float(cell_size)
 
-	# 棋盘格底色 + 固定哈希生成的草丛/小花。哈希只依赖格子坐标，所以镜头移动
-	# 时装饰不会跳变，也天然支持无限地图。
+	# 地形底色 + 种子化的草丛/小花。地形信息只从已加载区块读取（未加载 = 未知底色），
+	# 装饰只依赖 (seed, salt, 坐标)，所以镜头移动时不会跳变。
 	for y in range(first_cell.y, last_cell.y + 1):
 		for x in range(first_cell.x, last_cell.x + 1):
 			var cell := Vector2i(x, y)
 			var cell_rect := Rect2(Vector2(x, y) * cell_extent, Vector2.ONE * cell_extent)
-			var base := GRASS_A if posmod(x + y, 2) == 0 else GRASS_B
+			var terrain_type := _terrain_of(cell)
+			var base := _base_color(cell, terrain_type)
 			draw_rect(cell_rect, base, true)
-			_draw_cell_decor(cell, cell_rect)
+			if terrain_type == TerrainTypes.WATER:
+				_draw_water_ripple(cell, cell_rect)
+			elif terrain_type >= 0:
+				_draw_cell_decor(cell, cell_rect)
 
 	# 细网格线。
 	for x in range(first_cell.x, last_cell.x + 2):
@@ -77,21 +101,51 @@ func _draw() -> void:
 		draw_line(Vector2(min_world.x, py), Vector2(max_world.x, py), GRID_LINE, 1.0)
 
 
+## 已加载 -> 地形枚举；未加载 -> -1。
+func _terrain_of(cell: Vector2i) -> int:
+	if chunk_manager == null:
+		return -1
+	return chunk_manager.get_cell_terrain(cell)
+
+
+func _base_color(cell: Vector2i, terrain_type: int) -> Color:
+	if terrain_type < 0:
+		return UNKNOWN_A if posmod(cell.x + cell.y, 2) == 0 else UNKNOWN_B
+	match terrain_type:
+		TerrainTypes.WATER:
+			return Color("#5C97C7")
+		TerrainTypes.SAND:
+			return Color("#E0D0A0").lerp(Color("#D6C595"), 0.35 if posmod(cell.x + cell.y, 2) == 0 else 0.6)
+		TerrainTypes.DIRT:
+			return Color("#B08A5B").lerp(Color("#A67F51"), 0.35 if posmod(cell.x + cell.y, 2) == 0 else 0.6)
+		_:
+			return GRASS_A if posmod(cell.x + cell.y, 2) == 0 else GRASS_B
+
+
+func _draw_water_ripple(cell: Vector2i, cell_rect: Rect2) -> void:
+	# 极轻的水面纹理（同样由坐标哈希决定，不需要状态）。
+	var roll := SeedSystem.hash2(seed_value, 9173, cell.x, cell.y)
+	if (roll & 0x7FFF) % 3 != 0:
+		return
+	var inset := Vector2(6.0 + float(SeedSystem.ushr(roll, 5) % 12), 8.0 + float(SeedSystem.ushr(roll, 9) % 16))
+	draw_line(
+		cell_rect.position + inset,
+		cell_rect.position + inset + Vector2(9.0, 0.0),
+		Color(0.85, 0.93, 1.0, 0.22),
+		1.2
+	)
+
+
 func _draw_cell_decor(cell: Vector2i, cell_rect: Rect2) -> void:
-	var hash_value := ((cell.x * 73856093) ^ (cell.y * 19349663)) & 0x7FFFFFFF
-	if hash_value % 7 == 0:
-		var tuft := cell_rect.position + Vector2(
-			float(8 + ((hash_value >> 4) % 22)),
-			float(12 + ((hash_value >> 9) % 16))
-		)
+	if worldgen_config == null:
+		return
+	var decor := EcoLayer.visual_decor(seed_value, worldgen_config, cell)
+	if bool(decor["tuft"]):
+		var tuft: Vector2 = cell_rect.position + (decor["tuft_offset"] as Vector2)
 		draw_line(tuft, tuft + Vector2(-2.5, -5.0), TUFTS, 1.2)
 		draw_line(tuft, tuft + Vector2(0.5, -6.0), TUFTS, 1.2)
 		draw_line(tuft, tuft + Vector2(2.5, -4.0), TUFTS, 1.2)
-
-	if hash_value % 29 == 0:
-		var flower := cell_rect.position + Vector2(
-			float(10 + ((hash_value >> 3) % 18)),
-			float(10 + ((hash_value >> 7) % 14))
-		)
+	if bool(decor["flower"]):
+		var flower: Vector2 = cell_rect.position + (decor["flower_offset"] as Vector2)
 		draw_circle(flower, 1.8, FLOWERS)
 		draw_circle(flower, 0.7, Color("#C9833F"))

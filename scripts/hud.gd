@@ -84,7 +84,7 @@ func is_esc_menu_open() -> bool:
 	return esc_menu != null and esc_menu.is_open()
 
 
-func open_esc_menu(save_path: String, muted: bool, has_save: bool) -> void:
+func open_esc_menu(save_path: String, muted: bool, has_save: bool, seed_text: String) -> void:
 	if esc_menu == null:
 		return
 	close_map()
@@ -92,7 +92,7 @@ func open_esc_menu(save_path: String, muted: bool, has_save: bool) -> void:
 	close_nest()
 	close_behavior()
 	close_crafting()
-	esc_menu.open(save_path, muted, has_save)
+	esc_menu.open(save_path, muted, has_save, seed_text)
 
 
 func close_esc_menu() -> void:
