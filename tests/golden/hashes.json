@@ -5,9 +5,9 @@
 				0,
 				0
 			],
-			"hash": "0ad7b5d6092ef454",
-			"obstacles": 626,
-			"ores": 23,
+			"hash": "771374bc62139ec8",
+			"obstacles": 612,
+			"ores": 26,
 			"seed": "12345"
 		},
 		{
@@ -15,8 +15,8 @@
 				1,
 				0
 			],
-			"hash": "ac64da55b4eb50df",
-			"obstacles": 656,
+			"hash": "1939569e3f72cc7d",
+			"obstacles": 636,
 			"ores": 20,
 			"seed": "12345"
 		},
@@ -25,9 +25,9 @@
 				0,
 				1
 			],
-			"hash": "2e146037239c9172",
-			"obstacles": 625,
-			"ores": 6,
+			"hash": "87bdb5a80c674753",
+			"obstacles": 604,
+			"ores": 5,
 			"seed": "12345"
 		},
 		{
@@ -35,8 +35,8 @@
 				-1,
 				-1
 			],
-			"hash": "f3823f76395c3e7a",
-			"obstacles": 652,
+			"hash": "feeb23df21f79871",
+			"obstacles": 629,
 			"ores": 4,
 			"seed": "12345"
 		},
@@ -45,8 +45,8 @@
 				2,
 				3
 			],
-			"hash": "7d0b7002a12f7bf9",
-			"obstacles": 642,
+			"hash": "43f0829e809dbe16",
+			"obstacles": 630,
 			"ores": 0,
 			"seed": "12345"
 		},
@@ -55,9 +55,9 @@
 				0,
 				0
 			],
-			"hash": "911e38c371038c40",
-			"obstacles": 596,
-			"ores": 18,
+			"hash": "20fe58a04ce58c6d",
+			"obstacles": 582,
+			"ores": 12,
 			"seed": "0"
 		},
 		{
@@ -65,9 +65,9 @@
 				1,
 				0
 			],
-			"hash": "2560f853a7e5c91c",
-			"obstacles": 657,
-			"ores": 15,
+			"hash": "9d7b8f4b5553116f",
+			"obstacles": 641,
+			"ores": 14,
 			"seed": "0"
 		},
 		{
@@ -75,39 +75,39 @@
 				0,
 				1
 			],
-			"hash": "d8335075f2e96621",
-			"obstacles": 631,
-			"ores": 29,
-			"seed": "0"
-		},
-		{
-			"chunk": [
-				-1,
-				-1
-			],
-			"hash": "a8274c79d32e124d",
-			"obstacles": 686,
-			"ores": 42,
-			"seed": "0"
-		},
-		{
-			"chunk": [
-				2,
-				3
-			],
-			"hash": "cf71b835fc7c4011",
-			"obstacles": 657,
+			"hash": "59c18d9e1ac9515e",
+			"obstacles": 608,
 			"ores": 20,
 			"seed": "0"
 		},
 		{
 			"chunk": [
+				-1,
+				-1
+			],
+			"hash": "14291d596fdff1c9",
+			"obstacles": 670,
+			"ores": 46,
+			"seed": "0"
+		},
+		{
+			"chunk": [
+				2,
+				3
+			],
+			"hash": "2794185944e2a95e",
+			"obstacles": 636,
+			"ores": 25,
+			"seed": "0"
+		},
+		{
+			"chunk": [
 				0,
 				0
 			],
-			"hash": "a3fa93d0532e334a",
-			"obstacles": 614,
-			"ores": 19,
+			"hash": "d7374fa2bb0a491b",
+			"obstacles": 599,
+			"ores": 14,
 			"seed": "-1"
 		},
 		{
@@ -115,9 +115,9 @@
 				1,
 				0
 			],
-			"hash": "dcf32d63c70a2683",
-			"obstacles": 672,
-			"ores": 25,
+			"hash": "d2d1e325c38c4cd2",
+			"obstacles": 655,
+			"ores": 21,
 			"seed": "-1"
 		},
 		{
@@ -125,9 +125,9 @@
 				0,
 				1
 			],
-			"hash": "8de0790228803870",
-			"obstacles": 660,
-			"ores": 23,
+			"hash": "be290435fe489b40",
+			"obstacles": 636,
+			"ores": 27,
 			"seed": "-1"
 		},
 		{
@@ -135,9 +135,9 @@
 				-1,
 				-1
 			],
-			"hash": "a2bf542c945c28a1",
-			"obstacles": 683,
-			"ores": 29,
+			"hash": "9d57584b4ebf3bbe",
+			"obstacles": 666,
+			"ores": 21,
 			"seed": "-1"
 		},
 		{
@@ -145,9 +145,9 @@
 				2,
 				3
 			],
-			"hash": "a465c3853632f99a",
-			"obstacles": 633,
-			"ores": 17,
+			"hash": "bdfcbd34b05ece6b",
+			"obstacles": 614,
+			"ores": 12,
 			"seed": "-1"
 		},
 		{
@@ -155,9 +155,9 @@
 				0,
 				0
 			],
-			"hash": "63782da80409b9b9",
-			"obstacles": 592,
-			"ores": 21,
+			"hash": "62073c6ed027910b",
+			"obstacles": 578,
+			"ores": 26,
 			"seed": "9223372036854775807"
 		},
 		{
@@ -165,9 +165,9 @@
 				1,
 				0
 			],
-			"hash": "4a8d1f8697c1bce1",
-			"obstacles": 696,
-			"ores": 42,
+			"hash": "a2892cea189e747f",
+			"obstacles": 683,
+			"ores": 38,
 			"seed": "9223372036854775807"
 		},
 		{
@@ -175,8 +175,8 @@
 				0,
 				1
 			],
-			"hash": "5ca7060eec688b22",
-			"obstacles": 696,
+			"hash": "1772f83aa9129ab6",
+			"obstacles": 678,
 			"ores": 13,
 			"seed": "9223372036854775807"
 		},
@@ -185,9 +185,9 @@
 				-1,
 				-1
 			],
-			"hash": "3b0a74c6c99ee427",
-			"obstacles": 639,
-			"ores": 12,
+			"hash": "829a7a2551f59cac",
+			"obstacles": 612,
+			"ores": 14,
 			"seed": "9223372036854775807"
 		},
 		{
@@ -195,9 +195,9 @@
 				2,
 				3
 			],
-			"hash": "bf274cd8d5eeaf4c",
-			"obstacles": 672,
-			"ores": 7,
+			"hash": "e57e40fb4af2d813",
+			"obstacles": 655,
+			"ores": 9,
 			"seed": "9223372036854775807"
 		},
 		{
@@ -205,9 +205,9 @@
 				0,
 				0
 			],
-			"hash": "e25eab015f9593cd",
-			"obstacles": 647,
-			"ores": 19,
+			"hash": "1317a5b921dc9cd0",
+			"obstacles": 632,
+			"ores": 13,
 			"seed": "hello猪"
 		},
 		{
@@ -215,9 +215,9 @@
 				1,
 				0
 			],
-			"hash": "977e16ece83edb9f",
-			"obstacles": 670,
-			"ores": 11,
+			"hash": "4dcb93f6a72314df",
+			"obstacles": 650,
+			"ores": 19,
 			"seed": "hello猪"
 		},
 		{
@@ -225,9 +225,9 @@
 				0,
 				1
 			],
-			"hash": "5457bb8f2ed5d045",
-			"obstacles": 671,
-			"ores": 29,
+			"hash": "5fa1deaf2a3f4b59",
+			"obstacles": 642,
+			"ores": 17,
 			"seed": "hello猪"
 		},
 		{
@@ -235,8 +235,8 @@
 				-1,
 				-1
 			],
-			"hash": "d1f80a00d03f5f18",
-			"obstacles": 650,
+			"hash": "61419b739d1a22a6",
+			"obstacles": 628,
 			"ores": 2,
 			"seed": "hello猪"
 		},
@@ -245,12 +245,12 @@
 				2,
 				3
 			],
-			"hash": "50fe7ca5cb3cf6a8",
-			"obstacles": 655,
-			"ores": 34,
+			"hash": "3b6fad6ee71dce6e",
+			"obstacles": 641,
+			"ores": 43,
 			"seed": "hello猪"
 		}
 	],
 	"note": "黄金哈希：worldgen 有意变更后必须重新生成并 Review diff（见 docs/worldgen.md）。",
-	"worldgen_version": 3
+	"worldgen_version": 4
 }

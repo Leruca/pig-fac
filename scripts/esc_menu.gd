@@ -6,6 +6,7 @@ signal resume_requested
 signal save_requested
 signal load_requested
 signal volume_toggle_requested
+signal fps_toggle_requested
 signal new_game_requested(seed_text: String)
 
 var _status_label: Label
@@ -14,6 +15,7 @@ var _seed_label: Label
 var _seed_input: LineEdit
 var _new_game_button: Button
 var _volume_button: Button
+var _fps_button: Button
 var _load_button: Button
 var _panel: PanelContainer
 var _seed_text := ""
@@ -36,9 +38,16 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-func open(save_path: String, muted: bool, has_save: bool, seed_text: String) -> void:
+func open(
+	save_path: String,
+	muted: bool,
+	has_save: bool,
+	seed_text: String,
+	fps_visible: bool = true
+) -> void:
 	visible = true
 	_set_muted_text(muted)
+	_set_fps_text(fps_visible)
 	_set_has_save(has_save)
 	set_seed(seed_text)
 	if _seed_input != null:
@@ -69,6 +78,15 @@ func set_status(text: String, is_error: bool = false) -> void:
 
 func set_muted(muted: bool) -> void:
 	_set_muted_text(muted)
+
+
+func set_fps_visible(enabled: bool) -> void:
+	_set_fps_text(enabled)
+
+
+func _set_fps_text(enabled: bool) -> void:
+	if _fps_button != null:
+		_fps_button.text = "FPS 监控：开" if enabled else "FPS 监控：关"
 
 
 func set_has_save(has_save: bool) -> void:
@@ -185,6 +203,10 @@ func _build_layout() -> void:
 	_volume_button = _make_button("音效：开", 40.0)
 	_volume_button.pressed.connect(func() -> void: volume_toggle_requested.emit())
 	content.add_child(_volume_button)
+
+	_fps_button = _make_button("FPS 监控：开", 40.0)
+	_fps_button.pressed.connect(func() -> void: fps_toggle_requested.emit())
+	content.add_child(_fps_button)
 
 	_status_label = _make_label("游戏已暂停", 12, UIStyle.TEXT_MUTED)
 	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

@@ -1,5 +1,5 @@
 {
-  "worldgen_version": 3,
+  "worldgen_version": 4,
   "chunk_size": 255,
   "chunk_radius": 127,
   "spawn_safe_radius_cells": 24,
@@ -67,15 +67,10 @@
         5
       ],
       "rock_hp": [
-        1,
-        2
-      ],
-      "stone_chance_millis": 56,
-      "stone_hp": [
         6,
         10
       ],
-      "stone_amount": [
+      "rock_amount": [
         16,
         30
       ],
@@ -133,6 +128,17 @@
           "vein_size": [
             4,
             8
+          ],
+          "min_cell_amount": 1,
+          "max_cell_amount": 2
+        },
+        {
+          "id": "stone",
+          "weight": 25,
+          "depth_bias_millis": 0,
+          "vein_size": [
+            5,
+            10
           ],
           "min_cell_amount": 1,
           "max_cell_amount": 2

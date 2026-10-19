@@ -47,12 +47,15 @@ func _run() -> void:
 	var iron := int(by_type.get(2, 0))
 	var gold := int(by_type.get(3, 0))
 	var coal := int(by_type.get(4, 0))
+	var stone := int(by_type.get(5, 0))
 	_check(copper + iron + gold > 0, "至少应统计到矿格")
 	_check(coal > 0, "应统计到煤矿格")
+	_check(stone > 0, "应统计到石头矿格")
 	_check(copper > gold, "铜的权重(60)高于金(10)，样本里应当更多")
 	_check(iron > gold, "铁的权重(30)高于金(10)，样本里应当更多")
 	var copper_ratio := float(copper) / float(maxi(1, total_cells))
-	_check_almost(copper_ratio, 0.6, 0.25, "铜的比例应接近权重 0.6")
+	var expected_copper := float(config.ore_types[0]["weight"]) / float(maxi(1, config.ore_total_weight))
+	_check_almost(copper_ratio, expected_copper, 0.22, "铜的比例应接近配置权重")
 
 	# 每格 amount 必须为正；总矿量由下面的"整条脉"断言约束。
 	var bad_amount := 0

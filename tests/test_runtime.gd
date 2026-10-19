@@ -26,6 +26,7 @@ func _ready() -> void:
 	await _test_auto_open_chest()
 	_test_pig_capture_and_place()
 	_test_map_zoom()
+	_test_fps_monitor()
 
 	if _failures.is_empty():
 		print("RUNTIME TESTS PASSED: 3 pigs, pig cell blocking, collect/place, nest RGB, all blocks, UI.")
@@ -453,3 +454,12 @@ func _test_auto_open_chest() -> void:
 func _check(condition: bool, message: String) -> void:
 	if not condition:
 		_failures.append(message)
+
+
+func _test_fps_monitor() -> void:
+	_check(_main.hud.is_fps_visible(), "FPS monitor should default to visible")
+	_check(_main.hud._fps_monitor != null, "FPS monitor should be created in HUD")
+	_main.apply_fps_visible(false)
+	_check(not _main.hud.is_fps_visible(), "FPS monitor should hide when disabled")
+	_main.apply_fps_visible(true)
+	_check(_main.hud.is_fps_visible(), "FPS monitor should show again when enabled")

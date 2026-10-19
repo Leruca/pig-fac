@@ -11,7 +11,7 @@ func _ready() -> void:
 	_test_furnace_smelting()
 	_test_recipes()
 	if _failures.is_empty():
-		print("FEATURE TESTS PASSED: stone node, blocks, furnace smelting, recipes.")
+		print("FEATURE TESTS PASSED: ordinary stone, blocks, furnace smelting, recipes.")
 		get_tree().quit(0)
 	else:
 		for failure in _failures:
@@ -25,7 +25,7 @@ func _test_stone_node() -> void:
 	var cell := Vector2i(2, 2)
 	var hp := 7
 	var amount := 23
-	world.place_natural_block(cell, ChunkData.KIND_STONE, hp, amount)
+	world.place_natural_block(cell, ChunkData.KIND_ROCK, hp, amount)
 	var collected := 0
 	for index in hp:
 		var hit := world.hit_natural_block(cell)
@@ -43,20 +43,20 @@ func _test_worldgen_stone() -> void:
 	var data := generator.generate_chunk(Vector2i(0, 0))
 	var stone_count := 0
 	for obstacle in data.obstacles:
-		if int(obstacle["kind"]) != ChunkData.KIND_STONE:
+		if int(obstacle["kind"]) != ChunkData.KIND_ROCK:
 			continue
 		stone_count += 1
 		_check(
-			int(obstacle["hp"]) >= config.stone_hp_min
-			and int(obstacle["hp"]) <= config.stone_hp_max,
-			"generated stone hp should be within 6..10"
+			int(obstacle["hp"]) >= config.rock_hp_min
+			and int(obstacle["hp"]) <= config.rock_hp_max,
+			"generated ordinary stone hp should be within 6..10"
 		)
 		_check(
-			int(obstacle["stone_amount"]) >= config.stone_amount_min
-			and int(obstacle["stone_amount"]) <= config.stone_amount_max,
-			"generated stone amount should be within 16..30"
+			int(obstacle["stone_amount"]) >= config.rock_amount_min
+			and int(obstacle["stone_amount"]) <= config.rock_amount_max,
+			"generated ordinary stone amount should be within 16..30"
 		)
-	_check(stone_count > 0, "chunk (0,0) should contain generated stone nodes")
+	_check(stone_count > 0, "chunk (0,0) should contain generated ordinary stones")
 
 
 func _test_placed_blocks_and_furnace() -> void:

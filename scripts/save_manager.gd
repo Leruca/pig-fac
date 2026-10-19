@@ -108,6 +108,7 @@ func save_game() -> Dictionary:
 		"zoom": float(main._map_zoom),
 		"visited_blocks": visited,
 		"audio_muted": bool(main.is_audio_muted()),
+		"fps_visible": bool(main.is_fps_visible()),
 		"next_born_pig_index": int(main.world_objects._next_born_pig_index),
 		"tick": int(Time.get_ticks_msec()),
 	}
@@ -194,6 +195,7 @@ func load_game() -> Dictionary:
 	main._camera_offset = Vector2.ZERO
 	main._last_pig_cell = Vector2i(2147483647, 2147483647)
 	main.apply_audio_muted(bool(global.get("audio_muted", false)))
+	main.apply_fps_visible(bool(global.get("fps_visible", true)))
 	main.hud.set_map_zoom(zoom)
 
 	# 4) 家园块（有猪/有改动的块）急切同步恢复；其余走惰性分帧管线。
@@ -275,6 +277,7 @@ func _persist_legacy_migration(
 		"zoom": float(main._map_zoom),
 		"visited_blocks": visited,
 		"audio_muted": bool(main.is_audio_muted()),
+		"fps_visible": bool(main.is_fps_visible()),
 		"next_born_pig_index": int(main.world_objects._next_born_pig_index),
 		"tick": int(Time.get_ticks_msec()),
 	}

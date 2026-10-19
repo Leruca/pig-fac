@@ -21,6 +21,7 @@ var _minimap_detail: FarmMinimap
 var _minimap_big: FarmMinimap
 var _map_overlay: FarmMapOverlay
 var _furnace_ui: FurnaceUI
+var _fps_monitor: FPSMonitor
 var esc_menu: EscMenu
 var _hint_toast: PanelContainer
 var _hint_toast_label: Label
@@ -54,6 +55,7 @@ func _ready() -> void:
 	_build_map_overlay()
 	_build_furnace_ui()
 	_build_esc_menu()
+	_build_fps_monitor()
 	_info_panel.visible = false
 	_help_panel.visible = false
 	inventory_ui.visible = false
@@ -118,7 +120,13 @@ func is_esc_menu_open() -> bool:
 	return esc_menu != null and esc_menu.is_open()
 
 
-func open_esc_menu(save_path: String, muted: bool, has_save: bool, seed_text: String) -> void:
+func open_esc_menu(
+	save_path: String,
+	muted: bool,
+	has_save: bool,
+	seed_text: String,
+	fps_visible: bool = true
+) -> void:
 	if esc_menu == null:
 		return
 	close_map()
@@ -127,7 +135,28 @@ func open_esc_menu(save_path: String, muted: bool, has_save: bool, seed_text: St
 	close_furnace()
 	close_behavior()
 	close_crafting()
-	esc_menu.open(save_path, muted, has_save, seed_text)
+	esc_menu.open(save_path, muted, has_save, seed_text, fps_visible)
+
+
+func set_fps_visible(enabled: bool) -> void:
+	if _fps_monitor != null:
+		_fps_monitor.set_enabled(enabled)
+	if esc_menu != null:
+		esc_menu.set_fps_visible(enabled)
+
+
+func is_fps_visible() -> bool:
+	return _fps_monitor != null and _fps_monitor.is_enabled()
+
+
+func _build_fps_monitor() -> void:
+	if _fps_monitor != null:
+		return
+	_fps_monitor = FPSMonitor.new()
+	add_child(_fps_monitor)
+	_fps_monitor.visible = true
+	_fps_monitor.set_enabled(true)
+	_layout_panels()
 
 
 func close_esc_menu() -> void:
@@ -668,6 +697,12 @@ func _layout_panels() -> void:
 		_furnace_ui.position = Vector2(
 			size.x - _furnace_ui.size.x - 24.0,
 			size.y - _furnace_ui.size.y - 24.0
+		)
+	if _fps_monitor != null:
+		_fps_monitor.reset_size()
+		_fps_monitor.position = Vector2(
+			size.x - _fps_monitor.size.x - 18.0,
+			18.0
 		)
 	if esc_menu != null:
 		esc_menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)

@@ -93,6 +93,7 @@ var _camera_pan_moved := false
 var _camera_pan_start_screen := Vector2.ZERO
 var _camera_pan_last_screen := Vector2.ZERO
 var _audio_muted := false
+var _fps_visible := true
 var _save_manager: SaveManager
 ## 已探索的大地图块；键为 Vector2i 块坐标。
 var _visited_blocks: Dictionary = {}
@@ -137,6 +138,7 @@ func _ready() -> void:
 	hud.esc_menu.save_requested.connect(_on_pause_save_requested)
 	hud.esc_menu.load_requested.connect(_on_pause_load_requested)
 	hud.esc_menu.volume_toggle_requested.connect(_on_pause_volume_toggle_requested)
+	hud.esc_menu.fps_toggle_requested.connect(_on_pause_fps_toggle_requested)
 	hud.esc_menu.new_game_requested.connect(_on_new_game_requested)
 	_save_manager = SaveManager.new()
 	_save_manager.setup(self)
@@ -163,6 +165,7 @@ func _ready() -> void:
 	world_objects.add_tree(TREE_ROOT)
 	world_objects.rebuild_indexes()
 	apply_audio_muted(false)
+	hud.set_fps_visible(true)
 	hud.unbind_pig()
 	hud.setup_map(self)
 	_mark_visible_blocks()
@@ -400,7 +403,8 @@ func _open_pause_menu() -> void:
 		_save_manager.save_path(),
 		_audio_muted,
 		_save_manager.has_save(),
-		SeedSystem.seed_to_string(chunk_manager.get_seed())
+		SeedSystem.seed_to_string(chunk_manager.get_seed()),
+		_fps_visible
 	)
 	get_tree().paused = true
 
@@ -434,6 +438,22 @@ func _on_pause_volume_toggle_requested() -> void:
 	if hud.esc_menu != null:
 		hud.esc_menu.set_muted(_audio_muted)
 		hud.esc_menu.set_status("音效已%s。" % ("关闭" if _audio_muted else "开启"))
+
+
+func _on_pause_fps_toggle_requested() -> void:
+	apply_fps_visible(not _fps_visible)
+	if hud.esc_menu != null:
+		hud.esc_menu.set_fps_visible(_fps_visible)
+		hud.esc_menu.set_status("FPS 监控已%s。" % ("开启" if _fps_visible else "关闭"))
+
+
+func apply_fps_visible(enabled: bool) -> void:
+	_fps_visible = enabled
+	hud.set_fps_visible(enabled)
+
+
+func is_fps_visible() -> bool:
+	return _fps_visible
 
 
 func _on_new_game_requested(seed_text: String) -> void:

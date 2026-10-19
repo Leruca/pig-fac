@@ -63,6 +63,7 @@ const ORE_COLORS := {
 	2: Color("#9AA7B5"),
 	3: Color("#E0B23C"),
 	4: Color("#5E5E66"),
+	5: Color("#A3A39D"),
 }
 
 ## 空间索引桶大小（格）。必须 >= 最大 footprint（3），这样"格 -> 桶"最多 4 个桶。
@@ -967,6 +968,8 @@ func get_ore_item_id(ore_id: int) -> String:
 					return "gold_ore"
 				"coal":
 					return "coal"
+				"stone":
+					return "stone"
 	return "copper_ore"
 
 
@@ -980,6 +983,8 @@ func ore_display_name(ore_name: String) -> String:
 			return "金矿"
 		"coal":
 			return "煤矿"
+		"stone":
+			return "石矿"
 		_:
 			return ore_name
 
