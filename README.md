@@ -456,6 +456,14 @@ docs/
   pig2_backpack.png
 ```
 
+## 性能
+
+- 常态帧率上限 **120 FPS**（`Engine.max_fps = 120`），关闭 VSync，避免 60/144Hz 锁帧。
+- 地形 `WorldGrid` 和 `WorldObjects` 只在**镜头 transform 变化**或对象变更时重绘；静止时不会每帧重新遍历世界。
+- `WorldObjects` 用 32×32 空间索引只提交可视区域对象；整格方块只画底色 + 边框；小地图地形 4×4 采样，矿石按块预聚合，不再为每个 16m 格扫描全部矿。
+- 实时 FPS 监控默认开启，Esc 可关；开关随存档保存。
+- 极端压力场景（约 9,500 放置方块 + 10,200 矿点 + 12,300 自然物）在当前机器上**不锁帧静态约 130–150 FPS**。当前显示/合成器输出上限约 100–150 FPS，240 需要 240Hz 显示/合成链路；代码侧已移除随物品数量线性增长的重绘。常态锁 120 FPS。
+
 ## 测试
 
 本轮 `bash tests/run_worldgen_tests.sh --with-baseline` 通过 **24/24**：种子/坐标/边界、81k 断言跨块归属、地形单真源、矿脉连续性与分布、存档差分/卸载/迁移、黄金哈希、跨语言对拍、性能基准，以及既有 runtime/farm/inventory 和新增 features 基线。测试使用独立存档目录（`PIGFAC_TEST_SAVE_ROOT` 与 `SavePaths.set_root`），不会改动玩家 `user://saves/main`。

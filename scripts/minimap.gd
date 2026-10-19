@@ -94,13 +94,18 @@ func _rebuild_map_texture() -> void:
 	var image := Image.create(side, side, false, Image.FORMAT_RGBA8)
 	if mode == Mode.DETAIL:
 		var origin: Vector2i = _detail_geometry()["origin_cell"]
+		var ore_blocks := DetailMapStyle.build_ore_blocks(game)
 		for local_y in DETAIL_SIDE:
 			for local_x in DETAIL_SIDE:
 				var block_origin := origin + Vector2i(
 					local_x * DETAIL_CELL_METERS,
 					local_y * DETAIL_CELL_METERS
 				)
-				image.set_pixel(local_x, local_y, DetailMapStyle.color_for_block(game, block_origin))
+				image.set_pixel(
+					local_x,
+					local_y,
+					DetailMapStyle.color_for_block(game, block_origin, ore_blocks)
+				)
 	else:
 		var current: Vector2i = game.current_big_block()
 		var origin := current - Vector2i(4, 4)

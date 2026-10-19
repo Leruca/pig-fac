@@ -24,6 +24,8 @@ var worldgen_config: WorldGenConfig
 var seed_value: int = 0
 
 var _decor_cache: Dictionary = {}
+var _last_canvas_transform := Transform2D.IDENTITY
+var _canvas_transform_ready := false
 
 
 func _ready() -> void:
@@ -39,8 +41,12 @@ func setup(manager: ChunkManager, config: WorldGenConfig, seed_in: int) -> void:
 
 
 func _process(_delta: float) -> void:
-	# 摄像机平滑跟随猪移动时格子也在移动，所以保持重绘。
-	queue_redraw()
+	# 镜头不动时地形不需要逐帧重提交；只有 transform 变化才重绘。
+	var canvas_transform := get_viewport().get_canvas_transform()
+	if not _canvas_transform_ready or canvas_transform != _last_canvas_transform:
+		_canvas_transform_ready = true
+		_last_canvas_transform = canvas_transform
+		queue_redraw()
 
 
 ## 世界坐标 -> 格子坐标。负数也使用 floor，保证 (-1, -1) 是有效格子。
@@ -145,6 +151,8 @@ func _draw_water_ripple(cell: Vector2i, cell_rect: Rect2) -> void:
 
 func _draw_cell_decor(cell: Vector2i, cell_rect: Rect2) -> void:
 	if worldgen_config == null:
+		return
+	if worldgen_config.tuft_chance_millis == 0 and worldgen_config.flower_chance_millis == 0:
 		return
 	var decor := EcoLayer.visual_decor(seed_value, worldgen_config, cell)
 	if bool(decor["tuft"]):

@@ -19,7 +19,32 @@ const BLOCKED := Color(0.13, 0.24, 0.11, 1.0)
 const ORE_FALLBACK := Color(0.75, 0.53, 0.18, 1.0)
 
 
-static func color_for_block(game: Node, origin: Vector2i) -> Color:
+static func build_ore_blocks(game: Node) -> Dictionary:
+	var out := {}
+	if game == null:
+		return out
+	for ore_cell_value in game.world_objects.ores.keys():
+		var ore_cell: Vector2i = ore_cell_value
+		var block := Vector2i(
+			floori(float(ore_cell.x) / float(BLOCK_CELLS)),
+			floori(float(ore_cell.y) / float(BLOCK_CELLS))
+		)
+		var entry: Dictionary = out.get(block, {"cells": 0, "types": {}})
+		entry["cells"] = int(entry["cells"]) + 1
+		var ore: Dictionary = game.world_objects.ores[ore_cell]
+		var ore_id := int(ore.get("ore_id", 0))
+		var types: Dictionary = entry["types"]
+		types[ore_id] = int(types.get(ore_id, 0)) + 1
+		entry["types"] = types
+		out[block] = entry
+	return out
+
+
+static func color_for_block(
+	game: Node,
+	origin: Vector2i,
+	ore_blocks: Dictionary = {}
+) -> Color:
 	if game == null or game.chunk_manager == null:
 		return UNKNOWN
 	var terrain_counts := {0: 0, 1: 0, 2: 0, 3: 0}
@@ -51,17 +76,19 @@ static func color_for_block(game: Node, origin: Vector2i) -> Color:
 			if terrain_type != TerrainTypes.WATER and game.world_objects.is_blocked(cell):
 				blocked_count += 1
 
-	for ore_cell_value in game.world_objects.ores.keys():
-		var ore_cell: Vector2i = ore_cell_value
-		if (
-			ore_cell.x < origin.x or ore_cell.x >= origin.x + BLOCK_CELLS
-			or ore_cell.y < origin.y or ore_cell.y >= origin.y + BLOCK_CELLS
-		):
-			continue
-		ore_cells += 1
-		var ore: Dictionary = game.world_objects.ores[ore_cell]
-		var ore_id := int(ore.get("ore_id", 0))
-		ore_type_counts[ore_id] = int(ore_type_counts.get(ore_id, 0)) + 1
+	if ore_blocks.is_empty():
+		var ore_blocks_built := build_ore_blocks(game)
+		ore_blocks = ore_blocks_built
+	var block_key := Vector2i(
+		floori(float(origin.x) / float(BLOCK_CELLS)),
+		floori(float(origin.y) / float(BLOCK_CELLS))
+	)
+	var ore_entry: Dictionary = ore_blocks.get(block_key, {})
+	ore_cells = int(ore_entry.get("cells", 0))
+	if ore_cells > 0:
+		var types: Dictionary = ore_entry.get("types", {})
+		for ore_id in types.keys():
+			ore_type_counts[int(ore_id)] = int(types[ore_id])
 
 	var max_terrain := 0
 	var dominant_terrain := -1

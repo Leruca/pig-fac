@@ -100,6 +100,8 @@ var _visited_blocks: Dictionary = {}
 
 
 func _ready() -> void:
+	# 常态上限 120；极端压力测试可用命令行/调试器临时把 Engine.max_fps 设为 0。
+	Engine.max_fps = 120
 	farm.cell_size = grid.cell_size
 	world_objects.cell_size = grid.cell_size
 	world_objects.mature_area_guard = _can_grow_tree_area

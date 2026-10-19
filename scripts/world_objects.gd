@@ -108,6 +108,7 @@ var _removed_ores: Dictionary = {}
 ## 空间索引 --------------------------------------------------------------
 ## 桶坐标 -> {cell: {"kind": ..., "hp": ...}}  一格一物（含树 footprint 的每一格）
 var _cell_index: Dictionary = {}
+var _visible_cell_entries_cache: Dictionary = {}
 ## 桶坐标 -> {root: true}   树的 footprint 与桶相交
 var _tree_index: Dictionary = {}
 ## 桶坐标 -> {root: true}   窝的 footprint 与桶相交
@@ -117,6 +118,8 @@ var _nest_index: Dictionary = {}
 var mature_area_guard: Callable = Callable()
 ## 由 Main 注入：确定性耐久的来源（世界生成种子 + 配置）。
 var worldgen_seed: int = 0
+var _last_canvas_transform := Transform2D.IDENTITY
+var _canvas_transform_ready := false
 var worldgen_config: WorldGenConfig = null
 ## 由 ChunkManager 注入：把"待落盘的脏格"交给它（世界坐标）。
 var dirty_sink: Callable = Callable()
@@ -144,11 +147,13 @@ func _process(delta: float) -> void:
 	_advance_furnaces(delta)
 	if not is_visible_in_tree():
 		return
-	# _draw() 只提交"当前可视矩形"内的树/矿。CanvasItem 的绘制命令会缓存，
-	# 相机移动本身不会让 WorldObjects 重新 _draw；因此必须每帧重提交可视集合，
-	# 否则跑图后新进入视野的树/石头会一直缺失（"自然生成没加载"）。
-	# 树已按 32×32 空间索引裁剪，重绘成本只有可视区域内的几十棵。
-	queue_redraw()
+	# 只有镜头 transform 变化时才重提交可视对象；物品改变会由各 mutator 主动
+	# queue_redraw。否则每帧遍历/重绘物品会把复杂场景的帧率压到很低。
+	var canvas_transform := get_viewport().get_canvas_transform()
+	if not _canvas_transform_ready or canvas_transform != _last_canvas_transform:
+		_canvas_transform_ready = true
+		_last_canvas_transform = canvas_transform
+		queue_redraw()
 
 
 # ===== 脏标记 ==========================================================
@@ -1209,59 +1214,45 @@ func _draw() -> void:
 		elif not tree_rect.intersects(_visible_rect):
 			continue
 
-	for cell in saplings.keys():
-		if not _cell_visible(cell):
-			continue
-		_draw_sapling(cell, int(saplings[cell].get("stage", 0)))
+	for cell_value in _visible_cell_entries():
+		var cell: Vector2i = cell_value
+		var entry: Dictionary = _visible_cell_entries_cache[cell]
+		var kind := str(entry.get("kind", ""))
+		match kind:
+			"sapling":
+				if saplings.has(cell):
+					_draw_sapling(cell, int(saplings[cell].get("stage", 0)))
+			"ore":
+				if ores.has(cell):
+					_draw_ore(cell, int(ores[cell].get("ore_id", 1)), int(ores[cell].get("amount", 1)))
+			"natural":
+				if natural_blocks.has(cell):
+					_draw_natural_block(cell, int(natural_blocks[cell].get("kind", 0)))
+			"log":
+				if _log_texture != null:
+					draw_texture_rect(
+						_log_texture,
+						Rect2(Vector2(cell) * float(cell_size), Vector2.ONE * float(cell_size)),
+						false
+					)
+			"plank":
+				_draw_plank_block(cell)
+			"block":
+				if placed_blocks.has(cell):
+					_draw_placed_block(cell, str(placed_blocks[cell]))
+			"furnace":
+				_draw_furnace(cell)
+			"chest":
+				if _chest_texture != null:
+					draw_texture_rect(
+						_chest_texture,
+						Rect2(Vector2(cell) * float(cell_size), Vector2.ONE * float(cell_size)),
+						false
+					)
+			"fence":
+				_draw_fence(cell)
 
-	for cell in ores.keys():
-		if not _cell_visible(cell):
-			continue
-		_draw_ore(cell, int(ores[cell].get("ore_id", 1)), int(ores[cell].get("amount", 1)))
-
-	for cell in natural_blocks.keys():
-		if not _cell_visible(cell):
-			continue
-		_draw_natural_block(cell, int(natural_blocks[cell].get("kind", 0)))
-
-	for cell in logs.keys():
-		if not _cell_visible(cell):
-			continue
-		var log_rect := Rect2(
-			Vector2(cell) * float(cell_size),
-			Vector2.ONE * float(cell_size)
-		)
-		if _log_texture != null:
-			draw_texture_rect(_log_texture, log_rect, false)
-
-	for cell in planks.keys():
-		if not _cell_visible(cell):
-			continue
-		_draw_plank_block(cell)
-
-	for cell in placed_blocks.keys():
-		if not _cell_visible(cell):
-			continue
-		_draw_placed_block(cell, str(placed_blocks[cell]))
-
-	for cell in furnaces.keys():
-		if not _cell_visible(cell):
-			continue
-		_draw_furnace(cell)
-
-	for cell in chests.keys():
-		if not _cell_visible(cell):
-			continue
-		var chest_rect := Rect2(
-			Vector2(cell) * float(cell_size),
-			Vector2.ONE * float(cell_size)
-		)
-		if _chest_texture != null:
-			draw_texture_rect(_chest_texture, chest_rect, false)
-
-	for root in nests.keys():
-		if not _rect_intersects(root, NEST_SIZE):
-			continue
+	for root in _visible_nest_roots():
 		var nest_rect := Rect2(
 			Vector2(root) * float(cell_size),
 			Vector2.ONE * (float(cell_size) * float(NEST_SIZE))
@@ -1269,10 +1260,39 @@ func _draw() -> void:
 		if _nest_texture != null:
 			draw_texture_rect(_nest_texture, nest_rect, false)
 
-	for cell in fences.keys():
-		if not _cell_visible(cell):
-			continue
-		_draw_fence(cell)
+
+func _visible_cell_entries() -> Array[Vector2i]:
+	_visible_cell_entries_cache.clear()
+	if _cell_index.is_empty():
+		return []
+	var first := bucket_of(_world_to_cell_unclamped(_visible_rect.position)) - Vector2i.ONE
+	var last := bucket_of(_world_to_cell_unclamped(_visible_rect.end)) + Vector2i.ONE
+	for by in range(first.y, last.y + 1):
+		for bx in range(first.x, last.x + 1):
+			var bucket: Variant = _cell_index.get(Vector2i(bx, by))
+			if not (bucket is Dictionary):
+				continue
+			for cell in bucket.keys():
+				if _cell_visible(cell):
+					_visible_cell_entries_cache[cell] = bucket[cell]
+	return _visible_cell_entries_cache.keys()
+
+
+func _visible_nest_roots() -> Array[Vector2i]:
+	var roots: Array[Vector2i] = []
+	if _nest_index.is_empty():
+		return roots
+	var first := bucket_of(_world_to_cell_unclamped(_visible_rect.position)) - Vector2i.ONE
+	var last := bucket_of(_world_to_cell_unclamped(_visible_rect.end)) + Vector2i.ONE
+	for by in range(first.y, last.y + 1):
+		for bx in range(first.x, last.x + 1):
+			var bucket: Variant = _nest_index.get(Vector2i(bx, by))
+			if bucket is Dictionary:
+				for root in bucket.keys():
+					var root_cell: Vector2i = root
+					if _rect_intersects(root_cell, NEST_SIZE):
+						roots.append(root_cell)
+	return roots
 
 
 func _visible_tree_roots() -> Array[Vector2i]:
@@ -1394,28 +1414,12 @@ func _draw_placed_block(cell: Vector2i, kind: String) -> void:
 	var size := float(cell_size)
 	var fill := Color("#8F918B") if kind == "stone" else Color("#9B9B94")
 	var border := Color("#4D514C") if kind == "stone" else Color("#55564F")
-	var light := Color("#B9BBB3") if kind == "stone" else Color("#C2C0B5")
 	draw_rect(Rect2(origin, Vector2.ONE * size), fill, true)
-	draw_rect(Rect2(origin + Vector2.ONE, Vector2.ONE * (size - 2.0)), light, false, 1.0)
-	draw_rect(Rect2(origin, Vector2.ONE * size), border, false, 2.0)
-	if kind == "stone":
-		draw_circle(origin + Vector2(10.0, 12.0), 4.0, Color(0.74, 0.75, 0.71, 0.45))
-		draw_circle(origin + Vector2(26.0, 25.0), 5.0, Color(0.72, 0.73, 0.69, 0.40))
-		draw_line(
-			origin + Vector2(7.0, 30.0), origin + Vector2(18.0, 20.0),
-			Color(0.82, 0.83, 0.78, 0.35), 1.4
-		)
-	else:
-		for row in 3:
-			var y := origin.y + float(row) * (size / 3.0)
-			draw_line(Vector2(origin.x, y), Vector2(origin.x + size, y), border, 2.0)
-			var offset := 0.0 if row % 2 == 0 else size * 0.5
-			draw_line(
-				Vector2(origin.x + offset, y),
-				Vector2(origin.x + offset, y + size / 3.0),
-				border,
-				2.0
-			)
+	draw_rect(Rect2(origin, Vector2.ONE * size), border, false, 1.4)
+	if kind == "stone_brick":
+		# 只保留一条砖缝方向线，避免每块 4~5 次 draw 调用。
+		var y := origin.y + size * 0.5
+		draw_line(Vector2(origin.x, y), Vector2(origin.x + size, y), border, 1.0)
 
 
 func _draw_furnace(cell: Vector2i) -> void:
@@ -1436,16 +1440,15 @@ func _draw_furnace(cell: Vector2i) -> void:
 	var data: Dictionary = furnaces.get(cell, {})
 	var burning := float(data.get("burn_remaining", 0.0)) > 0.0
 	if burning:
-		var glow := 0.65 + 0.25 * absf(sin(Time.get_ticks_msec() / 180.0))
 		draw_circle(
 			origin + Vector2(size * 0.5, size * 0.78),
 			7.0,
-			Color(1.0, 0.48, 0.12, glow)
+			Color(1.0, 0.48, 0.12, 0.82)
 		)
 		draw_circle(
 			origin + Vector2(size * 0.5, size * 0.80),
 			3.5,
-			Color(1.0, 0.85, 0.35, glow)
+			Color(1.0, 0.85, 0.35, 0.9)
 		)
 	draw_line(
 		origin + Vector2(9.0, 10.0),

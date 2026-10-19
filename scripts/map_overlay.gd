@@ -135,13 +135,14 @@ func _draw() -> void:
 func _draw_detail() -> void:
 	var cell_px := _map_rect.size.x / float(DETAIL_SIDE)
 	var origin: Vector2i = game.detail_map_origin_cell(_detail_block)
+	var ore_blocks := DetailMapStyle.build_ore_blocks(game)
 	for local_y in DETAIL_SIDE:
 		for local_x in DETAIL_SIDE:
 			var block_origin := origin + Vector2i(
 				local_x * DETAIL_CELL_METERS,
 				local_y * DETAIL_CELL_METERS
 			)
-			var color := DetailMapStyle.color_for_block(game, block_origin)
+			var color := DetailMapStyle.color_for_block(game, block_origin, ore_blocks)
 			var rect := Rect2(
 				_map_rect.position + Vector2(float(local_x), float(local_y)) * cell_px,
 				Vector2.ONE * cell_px
