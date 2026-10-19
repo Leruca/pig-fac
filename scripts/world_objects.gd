@@ -121,6 +121,13 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	advance_sapling_growth(delta)
 	_advance_nests(delta)
+	if not is_visible_in_tree():
+		return
+	# _draw() 只提交"当前可视矩形"内的树/矿。CanvasItem 的绘制命令会缓存，
+	# 相机移动本身不会让 WorldObjects 重新 _draw；因此必须每帧重提交可视集合，
+	# 否则跑图后新进入视野的树/石头会一直缺失（"自然生成没加载"）。
+	# 树已按 32×32 空间索引裁剪，重绘成本只有可视区域内的几十棵。
+	queue_redraw()
 
 
 # ===== 脏标记 ==========================================================
