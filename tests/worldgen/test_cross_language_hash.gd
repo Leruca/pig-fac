@@ -26,7 +26,14 @@ func _initialize() -> void:
 			var obstacles: Array = []
 			for obstacle in data.obstacles:
 				var cell: Vector2i = obstacle["cell"]
-				obstacles.append({"cell": [cell.x, cell.y], "kind": int(obstacle["kind"]), "hp": int(obstacle["hp"])})
+				var exported := {
+					"cell": [cell.x, cell.y],
+					"kind": int(obstacle["kind"]),
+					"hp": int(obstacle["hp"]),
+				}
+				if obstacle.has("stone_amount"):
+					exported["stone_amount"] = int(obstacle["stone_amount"])
+				obstacles.append(exported)
 			var ores: Array = []
 			for ore in data.ores:
 				var ore_cell: Vector2i = ore["cell"]

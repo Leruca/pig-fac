@@ -37,6 +37,18 @@ const RECIPES: Array[Dictionary] = [
 		"output_amount": 1,
 		"ingredients": {"wood": 4, "planks": 4, "chest": 1},
 	},
+	{
+		"id": "stone_brick",
+		"output": "stone_brick",
+		"output_amount": 2,
+		"ingredients": {"stone": 4},
+	},
+	{
+		"id": "furnace",
+		"output": "furnace",
+		"output_amount": 1,
+		"ingredients": {"stone_brick": 4},
+	},
 ]
 
 

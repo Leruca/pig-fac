@@ -1,5 +1,5 @@
 {
-  "worldgen_version": 2,
+  "worldgen_version": 3,
   "chunk_size": 255,
   "chunk_radius": 127,
   "spawn_safe_radius_cells": 24,
@@ -70,6 +70,15 @@
         1,
         2
       ],
+      "stone_chance_millis": 56,
+      "stone_hp": [
+        6,
+        10
+      ],
+      "stone_amount": [
+        16,
+        30
+      ],
       "tree_footprint": 3,
       "tree_ground_pad_millis": 640
     },
@@ -113,6 +122,17 @@
           "vein_size": [
             3,
             6
+          ],
+          "min_cell_amount": 1,
+          "max_cell_amount": 2
+        },
+        {
+          "id": "coal",
+          "weight": 20,
+          "depth_bias_millis": 120,
+          "vein_size": [
+            4,
+            8
           ],
           "min_cell_amount": 1,
           "max_cell_amount": 2

@@ -32,10 +32,13 @@ static func build_overrides(
 		"planted_trees": [],
 		"removed_naturals": [],
 		"natural_hits": {},
+		"natural_stones": {},
 		"saplings": [],
 		"logs": [],
 		"planks": [],
 		"fences": [],
+		"placed_blocks": [],
+		"furnaces": [],
 		"chests": [],
 		"nests": [],
 		"farm": [],
@@ -95,6 +98,11 @@ static func build_overrides(
 		var remaining := world.get_natural_hp(cell)
 		if remaining < int(obstacle.get("hp", 1)):
 			overrides["natural_hits"][_cell_key(cell)] = remaining
+		var stone_base := int(obstacle.get("stone_amount", 0))
+		if stone_base > 0:
+			var stone_live := world.get_natural_stone(cell)
+			if stone_live < stone_base:
+				overrides["natural_stones"][_cell_key(cell)] = stone_live
 
 	# --- 建造物 / 树苗：按格归属 ---
 	for cell_value in world.logs.keys():
@@ -109,6 +117,25 @@ static func build_overrides(
 		var cell: Vector2i = cell_value
 		if _in_chunk(cell, origin, chunk_size):
 			overrides["fences"].append(_encode_cell(cell))
+	for cell_value in world.placed_blocks.keys():
+		var cell: Vector2i = cell_value
+		if _in_chunk(cell, origin, chunk_size):
+			overrides["placed_blocks"].append({
+				"cell": _encode_cell(cell),
+				"kind": str(world.placed_blocks[cell]),
+			})
+	for cell_value in world.furnaces.keys():
+		var cell: Vector2i = cell_value
+		if not _in_chunk(cell, origin, chunk_size):
+			continue
+		var furnace: Dictionary = world.furnaces[cell]
+		overrides["furnaces"].append({
+			"cell": _encode_cell(cell),
+			"inventory": SaveCodec.encode_inventory(furnace.get("inventory")),
+			"burn_remaining": float(furnace.get("burn_remaining", 0.0)),
+			"burn_total": float(furnace.get("burn_total", 0.0)),
+			"smelt_progress": float(furnace.get("smelt_progress", 0.0)),
+		})
 	for cell_value in world.chests.keys():
 		var cell: Vector2i = cell_value
 		if _in_chunk(cell, origin, chunk_size):
@@ -274,10 +301,13 @@ static func _legacy_overrides(payload: Dictionary) -> Dictionary:
 		"planted_trees": [],
 		"removed_naturals": [],
 		"natural_hits": {},
+		"natural_stones": {},
 		"saplings": [],
 		"logs": [],
 		"planks": [],
 		"fences": [],
+		"placed_blocks": [],
+		"furnaces": [],
 		"chests": [],
 		"nests": [],
 		"farm": [],

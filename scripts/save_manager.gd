@@ -351,6 +351,8 @@ func _clear_runtime() -> void:
 	world.saplings.clear()
 	world.chests.clear()
 	world.fences.clear()
+	world.placed_blocks.clear()
+	world.furnaces.clear()
 	world.nests.clear()
 	world.ores.clear()
 	world.natural_blocks.clear()

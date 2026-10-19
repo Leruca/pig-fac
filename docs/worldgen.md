@@ -79,7 +79,7 @@ region_of_chunk(chunk)      = floor_div(chunk, 4)            # REGION = 4x4 区�
 
 ```
 TerrainLayer  -> 地形字节数组（GRASS/DIRT/SAND/WATER）
-ObstacleLayer -> 3x3 树 + 1 格石头（同一遍扫描里顺带放灌木）
+ObstacleLayer -> 3x3 树 + 1 格石头/石头矿脉（同一遍扫描里顺带放灌木）
 EcoLayer      -> 可交互灌木；视觉装饰不物化
 OreLayer      -> REGION 级矿脉（随机游走）
 SpawnGuard    -> 出生保护区逐格覆写（最后执行，优先级最高）
@@ -100,7 +100,8 @@ SpawnGuard    -> 出生保护区逐格覆写（最后执行，优先级最高）
 ### 4.2 障碍（树 / 石头 / 灌木）
 
 * 候选点是**全局粗网格**（`step = obstacle.cell_chunk_cells`，默认 8）加确定性抖动；
-  每候选点最多产出 1 棵树 / 1 块石头 / 1 丛灌木。
+  每候选点最多产出 1 棵树 / 1 块石头 / 1 丛灌木；另有一条独立哈希生成石头矿脉
+  （`KIND_STONE`，6–10 耐久，每格 16–30 石头，视觉为 2×2 小山）。
   抖动是必要的：没有它树根只能落在 step 的整数倍上，3×3 footprint 永远无法跨越区块接缝
   （边界带逻辑会变成死代码），而且地图上能看到网格。
 * 树的 3×3 里任何一格是 WATER 就不种；非 SAND 占比低于 `tree_ground_pad_millis` 也不种。
@@ -130,6 +131,7 @@ SpawnGuard    -> 出生保护区逐格覆写（最后执行，优先级最高）
    （不是按本区块交集后的碎片计数）。
 6. 每格 amount 由**本脉独立派生流**给出；当 `vein_total_amount_min > 0` 时，先取样整条脉总矿量（当前至少 50,000），再按过滤后的格子均分（余数给前几格），因此整条脉在任何区块里重算都一致。
 7. 类型权重受 `depth_bias_millis` 影响：离出生点越远，金矿/铁矿权重越高（定点，无浮点随机）。
+8. 当前矿种：铜(1)、铁(2)、金(3)、煤(4)；煤矿脉同样受 `vein_total_amount_min` 约束。
 
 REGION 级缓存只按 `(seed, version, region)` 索引，是纯函数结果的记忆化，不引入顺序依赖；
 构建过程是**可切片状态机**（`OreLayer.RegionBuilder`），可以分帧推进。
@@ -217,7 +219,7 @@ world_objects.dematerialize_chunk(chunk)
 | `bench.avg_ms_max` / `p99_ms_max` | `tests/bench_chunk_gen.gd` 的断言阈值（当前 90ms / 250ms；高负载 CI 留余量）|
 | `layers.terrain.*` | `salt`、`noise_scale_q16`、`octaves`、三档阈值 |
 | `layers.eco.*` | `bush_chance_millis`、`tuft_chance_millis`、`flower_chance_millis` |
-| `layers.obstacle.*` | `cell_chunk_cells`、`tree_chance_millis`、`rock_chance_millis`、`tree_hp`、`tree_footprint` |
+| `layers.obstacle.*` | `cell_chunk_cells`、`tree_chance_millis`、`rock_chance_millis`、`stone_chance_millis`、`stone_hp`、`stone_amount`、`tree_footprint` |
 | `layers.ore.*` | `region_chunks`、`vein_count_per_region`、`min_vein_cells`、`vein_total_amount_min/max`、`types[]` |
 
 **所有概率/密度都是"每候选点"的千单位整数**（`*_chance_millis`），折算到每格概率
@@ -242,7 +244,9 @@ user://saves/main/blocks/x_y.json   # 区块差分：{chunk, worldgen_version, o
 | `chopped_trees` | 砍倒（根格）|
 | `tree_hits: {root: remaining}` | 锤了没倒的部分损伤 |
 | `planted_trees` | 玩家种下/树苗长成的树（含耐久）|
-| `removed_naturals` | 敲掉的石头/灌木 |
+| `removed_naturals` | 敲掉的石头/石头矿脉/灌木 |
+| `natural_hits` / `natural_stones` | 自然物剩余耐久 / 石头矿脉剩余石量 |
+| `placed_blocks` / `furnaces` | 玩家放置的石方块/石砖方块；熔炉库存与燃烧/熔炼进度 |
 | `saplings` | `{cell, stage, elapsed, mature_root, mature_hp}` |
 | `logs` / `planks` / `fences` / `chests` / `nests` | 建造物 |
 | `farm` | 地块 `{cell, crop_id, stage, elapsed}` |
@@ -370,7 +374,8 @@ godot --headless --path . -s res://tests/bench_chunk_gen.gd
 | `test_band_ownership` | 跨块 3×3 树在**每一个**相交区块都被收录（81k 断言，多区块原点/多种子）；不得出现互相重叠的树；跨块树可被砍且可落盘 |
 | `test_terrain_single_truth` | 全量比对（6 种子 × 4 区块 × 65025 格）「存储地形」与「点查询地形」逐格一致；窗口内外取值逐位一致 |
 | `test_slice_and_config_guards` | 行预算是真闸门；任意切片粒度哈希一致；`chunk_radius` 由 `chunk_size` 推导 |
-| `test_save_regressions` | 读档→卸载→重载后损伤不回退；石头/灌木耐久落盘；未加载脏块不静默跳过；原子写先落 `.tmp` 且不留残留 |
+| `test_save_regressions` | 读档→卸载→重载后损伤不回退；石头/灌木/石头矿脉耐久与石量落盘；未加载脏块不静默跳过；原子写先落 `.tmp` 且不留残留 |
+| `test_features` | 石头矿脉 6–10 下 × 16–30 石头、可放置方块、熔炉冶炼、石砖/熔炉配方 |
 | `test_cross_language_hash` | 导出完整序列化输入，交给纯 Python 实现复算；找不到 Python 时明确 SKIP |
 | `test_version_migration` | 迁移式烘焙：绝对值字段一条不丢、相对值字段按新基底夹取、重基为空则删文件 |
 | `bench_chunk_gen` | 100 块 avg/p99 对预算断言（验收 11）|

@@ -12,11 +12,12 @@ extends RefCounted
 ##   ores      Array[Dictionary]，{cell: Vector2i, ore_id: int, amount: int}
 ##   hash      黄金哈希（仅调试/对拍用，不参与存档）
 
-enum ObstacleKind { TREE = 1, ROCK = 2, BUSH = 3 }
+enum ObstacleKind { TREE = 1, ROCK = 2, BUSH = 3, STONE = 4 }
 
 const KIND_TREE := 1
 const KIND_ROCK := 2
 const KIND_BUSH := 3
+const KIND_STONE := 4
 
 var chunk: Vector2i = Vector2i.ZERO
 var worldgen_version: int = 1

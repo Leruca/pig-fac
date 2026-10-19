@@ -101,6 +101,8 @@ static func decode_inventory(value: Variant, default_slots: int = Inventory.DEFA
 			var item: Variant = source[key]
 			if str(key) == "pig_inventory" and item is Dictionary:
 				decoded[key] = decode_inventory(item)
+			elif str(key) == "count":
+				decoded[key] = int(item)
 			else:
 				decoded[key] = decode(item)
 		inventory.slots[index] = decoded

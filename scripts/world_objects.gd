@@ -32,6 +32,21 @@ const NEST_SLOT_PARENT_B := 1
 const NEST_SLOT_FOOD := 2
 const NEST_SLOT_OUTPUT := 3
 
+const FURNACE_SLOT_INPUT := 0
+const FURNACE_SLOT_FUEL := 1
+const FURNACE_SLOT_OUTPUT := 2
+const FURNACE_SMELT_SECONDS := 5.0
+const FURNACE_FUEL_SECONDS := {
+	"wood": 20.0,
+	"planks": 10.0,
+	"coal": 40.0,
+}
+const FURNACE_SMELT_RECIPES := {
+	"copper_ore": {"ingot": "copper_ingot", "seconds": 5.0},
+	"iron_ore": {"ingot": "iron_ingot", "seconds": 5.0},
+	"gold_ore": {"ingot": "gold_ingot", "seconds": 5.0},
+}
+
 const STEM := Color("#6F4A2B")
 const LEAF_DARK := Color("#3E8436")
 const LEAF_MID := Color("#61AA45")
@@ -47,7 +62,7 @@ const ORE_COLORS := {
 	1: Color("#C87F4A"),
 	2: Color("#9AA7B5"),
 	3: Color("#E0B23C"),
-	4: Color("#7FD3C4"),
+	4: Color("#5E5E66"),
 }
 
 ## 空间索引桶大小（格）。必须 >= 最大 footprint（3），这样"格 -> 桶"最多 4 个桶。
@@ -67,11 +82,15 @@ var saplings: Dictionary = {}
 var chests: Dictionary = {}
 ## cell -> true
 var fences: Dictionary = {}
+## cell -> "stone" / "stone_brick"
+var placed_blocks: Dictionary = {}
+## cell -> {"inventory": Inventory(3), "burn_remaining": float, "burn_total": float, "smelt_progress": float}
+var furnaces: Dictionary = {}
 ## root -> {"inventory": Inventory(4), "progress": float, "active": bool}
 var nests: Dictionary = {}
 ## cell -> {"ore_id": int, "amount": int, "vein_id": int}
 var ores: Dictionary = {}
-## cell -> {"kind": int, "hp": int}   程序生成的石头 / 灌木
+## cell -> {"kind": int, "hp": int, "stone": int}   程序生成的石头 / 石头矿脉 / 灌木
 var natural_blocks: Dictionary = {}
 ## tree root -> remaining hammer hits
 var _tree_hits: Dictionary = {}
@@ -121,6 +140,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	advance_sapling_growth(delta)
 	_advance_nests(delta)
+	_advance_furnaces(delta)
 	if not is_visible_in_tree():
 		return
 	# _draw() 只提交"当前可视矩形"内的树/矿。CanvasItem 的绘制命令会缓存，
@@ -234,6 +254,10 @@ func rebuild_indexes() -> void:
 		_index_add_cell(cell, "chest")
 	for cell in fences.keys():
 		_index_add_cell(cell, "fence")
+	for cell in placed_blocks.keys():
+		_index_add_cell(cell, "block")
+	for cell in furnaces.keys():
+		_index_add_cell(cell, "furnace")
 	for root in nests.keys():
 		_index_add_nest(root)
 	for cell in ores.keys():
@@ -549,6 +573,148 @@ func get_fence_count() -> int:
 	return fences.size()
 
 
+# ===== 可放置整格方块 / 熔炉 =========================================
+
+func place_placed_block(cell: Vector2i, kind: String) -> bool:
+	if kind != "stone" and kind != "stone_brick":
+		return false
+	if is_blocked(cell):
+		return false
+	placed_blocks[cell] = kind
+	_index_add_cell(cell, "block")
+	mark_dirty(cell)
+	queue_redraw()
+	return true
+
+
+func has_placed_block(cell: Vector2i) -> bool:
+	return placed_blocks.has(cell)
+
+
+func get_placed_block(cell: Vector2i) -> String:
+	return str(placed_blocks.get(cell, ""))
+
+
+func remove_placed_block(cell: Vector2i) -> bool:
+	if not placed_blocks.has(cell):
+		return false
+	placed_blocks.erase(cell)
+	_index_remove_cell(cell)
+	mark_dirty(cell)
+	queue_redraw()
+	return true
+
+
+func place_furnace(cell: Vector2i) -> Dictionary:
+	if is_blocked(cell):
+		return {}
+	var inventory := Inventory.new(3)
+	var data := {
+		"inventory": inventory,
+		"burn_remaining": 0.0,
+		"burn_total": 0.0,
+		"smelt_progress": 0.0,
+	}
+	furnaces[cell] = data
+	_index_add_cell(cell, "furnace")
+	_bind_container_dirty(cell, inventory)
+	mark_dirty(cell)
+	queue_redraw()
+	return data
+
+
+func has_furnace(cell: Vector2i) -> bool:
+	return furnaces.has(cell)
+
+
+func get_furnace(cell: Vector2i) -> Dictionary:
+	return furnaces.get(cell, {})
+
+
+func remove_furnace(cell: Vector2i) -> bool:
+	if not furnaces.has(cell):
+		return false
+	_unbind_container_dirty(cell)
+	furnaces.erase(cell)
+	_index_remove_cell(cell)
+	mark_dirty(cell)
+	queue_redraw()
+	return true
+
+
+func _advance_furnaces(delta: float) -> void:
+	for cell_value in furnaces.keys():
+		var cell: Vector2i = cell_value
+		var data: Dictionary = furnaces[cell]
+		var inventory: Inventory = data.get("inventory")
+		if inventory == null:
+			continue
+		var input_slot := inventory.get_slot(FURNACE_SLOT_INPUT)
+		var input_id := str(input_slot.get("item_id", ""))
+		var recipe: Dictionary = FURNACE_SMELT_RECIPES.get(input_id, {})
+		var can_smelt := not recipe.is_empty() and int(input_slot.get("count", 0)) > 0
+		if can_smelt:
+			can_smelt = _furnace_output_accepts(
+				inventory, str(recipe.get("ingot", "")), 1
+			)
+
+		var burn := float(data.get("burn_remaining", 0.0))
+		if burn <= 0.0 and can_smelt:
+			var fuel_slot := inventory.get_slot(FURNACE_SLOT_FUEL)
+			var fuel_id := str(fuel_slot.get("item_id", ""))
+			var fuel_seconds := float(FURNACE_FUEL_SECONDS.get(fuel_id, 0.0))
+			if fuel_seconds > 0.0 and inventory.remove_from_slot(FURNACE_SLOT_FUEL, 1):
+				data["burn_total"] = fuel_seconds
+				burn = fuel_seconds
+				mark_dirty(cell)
+		if burn > 0.0:
+			burn = maxf(0.0, burn - delta)
+			data["burn_remaining"] = burn
+
+		if not can_smelt:
+			data["smelt_progress"] = 0.0
+			continue
+		var progress := float(data.get("smelt_progress", 0.0)) + delta
+		var seconds := float(recipe.get("seconds", FURNACE_SMELT_SECONDS))
+		if progress < seconds:
+			data["smelt_progress"] = progress
+			continue
+		var ingot := str(recipe.get("ingot", ""))
+		if not inventory.remove_from_slot(FURNACE_SLOT_INPUT, 1):
+			data["smelt_progress"] = 0.0
+			continue
+		_add_to_slot(inventory, FURNACE_SLOT_OUTPUT, ingot, 1)
+		data["smelt_progress"] = 0.0
+		mark_dirty(cell)
+
+
+func _furnace_output_accepts(inventory: Inventory, item_id: String, amount: int) -> bool:
+	if item_id.is_empty():
+		return false
+	var slot := inventory.get_slot(FURNACE_SLOT_OUTPUT)
+	if slot.is_empty():
+		return true
+	if str(slot.get("item_id", "")) != item_id:
+		return false
+	return int(slot.get("count", 0)) + amount <= ItemDB.get_max_stack(item_id)
+
+
+func _add_to_slot(inventory: Inventory, index: int, item_id: String, amount: int) -> bool:
+	if amount <= 0 or not ItemDB.has_item(item_id):
+		return false
+	var slot := inventory.get_slot(index)
+	if slot.is_empty():
+		slot = {"item_id": item_id, "count": amount}
+	elif str(slot.get("item_id", "")) == item_id:
+		slot["count"] = int(slot.get("count", 0)) + amount
+	else:
+		return false
+	inventory.slots[index] = slot
+	inventory.changed.emit()
+	queue_redraw()
+	return true
+
+
 func place_nest(root: Vector2i) -> Dictionary:
 	for offset_y in NEST_SIZE:
 		for offset_x in NEST_SIZE:
@@ -799,6 +965,8 @@ func get_ore_item_id(ore_id: int) -> String:
 					return "iron_ore"
 				"gold":
 					return "gold_ore"
+				"coal":
+					return "coal"
 	return "copper_ore"
 
 
@@ -810,6 +978,8 @@ func ore_display_name(ore_name: String) -> String:
 			return "铁矿"
 		"gold":
 			return "金矿"
+		"coal":
+			return "煤矿"
 		_:
 			return ore_name
 
@@ -828,8 +998,14 @@ func get_natural_hp(cell: Vector2i) -> int:
 	return int(natural_blocks[cell].get("hp", 0))
 
 
-func place_natural_block(cell: Vector2i, kind: int, hp: int) -> void:
-	natural_blocks[cell] = {"kind": kind, "hp": hp}
+func get_natural_stone(cell: Vector2i) -> int:
+	if not natural_blocks.has(cell):
+		return 0
+	return int(natural_blocks[cell].get("stone", 0))
+
+
+func place_natural_block(cell: Vector2i, kind: int, hp: int, stone_amount: int = 0) -> void:
+	natural_blocks[cell] = {"kind": kind, "hp": hp, "stone": stone_amount}
 	_index_add_cell(cell, "natural", hp)
 	queue_redraw()
 
@@ -844,23 +1020,44 @@ func remove_natural_block(cell: Vector2i) -> bool:
 	return true
 
 
-## 锤石头/灌木。返回 {"destroyed": bool, "remaining": int, "kind": int}。
+## 锤石头/灌木/石头矿脉。返回 {"destroyed": bool, "remaining": int, "kind": int,
+## "stone_yield": int, "stone_remaining": int}。
 func hit_natural_block(cell: Vector2i) -> Dictionary:
 	if not natural_blocks.has(cell):
 		return {}
 	var block: Dictionary = natural_blocks[cell]
 	var kind := int(block.get("kind", 0))
 	var remaining := maxi(0, int(block.get("hp", 0)) - 1)
+	var stone_remaining := int(block.get("stone", 0))
+	var stone_yield := 0
+	if stone_remaining > 0:
+		var hits_for_stone := maxi(1, remaining + 1)
+		stone_yield = maxi(1, int(ceil(float(stone_remaining) / float(hits_for_stone))))
+		stone_yield = mini(stone_yield, stone_remaining)
+		stone_remaining -= stone_yield
 	if remaining <= 0:
 		remove_natural_block(cell)
-		return {"destroyed": true, "remaining": 0, "kind": kind}
+		return {
+			"destroyed": true,
+			"remaining": 0,
+			"kind": kind,
+			"stone_yield": stone_yield,
+			"stone_remaining": 0,
+		}
 	block["hp"] = remaining
+	block["stone"] = stone_remaining
 	natural_blocks[cell] = block
 	if _cell_index.has(bucket_of(cell)):
 		_cell_index[bucket_of(cell)][cell] = {"kind": "natural", "hp": remaining}
 	mark_dirty(cell)
 	queue_redraw()
-	return {"destroyed": false, "remaining": remaining, "kind": kind}
+	return {
+		"destroyed": false,
+		"remaining": remaining,
+		"kind": kind,
+		"stone_yield": stone_yield,
+		"stone_remaining": stone_remaining,
+	}
 
 
 # ===== 物化 / 去物化（成对 API，§5.2）=================================
@@ -898,7 +1095,12 @@ func materialize_chunk(
 		var cell: Vector2i = entry["cell"]
 		if natural_blocks.has(cell):
 			continue
-		place_natural_block(cell, int(entry["kind"]), int(entry.get("hp", 1)))
+		place_natural_block(
+			cell,
+			int(entry["kind"]),
+			int(entry.get("hp", 1)),
+			int(entry.get("stone_amount", 0))
+		)
 		record["blocks"].append(cell)
 	_materialized[chunk] = record
 	var _unused := origin
@@ -1032,6 +1234,16 @@ func _draw() -> void:
 			continue
 		_draw_plank_block(cell)
 
+	for cell in placed_blocks.keys():
+		if not _cell_visible(cell):
+			continue
+		_draw_placed_block(cell, str(placed_blocks[cell]))
+
+	for cell in furnaces.keys():
+		if not _cell_visible(cell):
+			continue
+		_draw_furnace(cell)
+
 	for cell in chests.keys():
 		if not _cell_visible(cell):
 			continue
@@ -1114,18 +1326,128 @@ func _draw_ore(cell: Vector2i, ore_id: int, amount: int) -> void:
 func _draw_natural_block(cell: Vector2i, kind: int) -> void:
 	var origin := Vector2(cell) * float(cell_size)
 	var center := origin + Vector2.ONE * (float(cell_size) * 0.5)
+	var half_width := 36.0
 	draw_set_transform(center + Vector2(0.0, 12.0), 0.0, Vector2(1.0, 0.34))
-	draw_circle(Vector2.ZERO, 13.0, Color(0.08, 0.12, 0.05, 0.26))
+	draw_circle(Vector2.ZERO, half_width * 0.72, Color(0.08, 0.12, 0.05, 0.26))
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	if kind == ChunkData.KIND_BUSH:
 		for index in 4:
 			var angle := TAU * float(index) / 4.0 + 0.4
 			draw_circle(center + Vector2(cos(angle), sin(angle)) * 5.0, 6.4, BUSH_FILL)
 		draw_circle(center, 6.0, BUSH_LIGHT)
+		return
+
+	var base_y := center.y + 15.0
+	var peak_y := center.y - (30.0 if kind == ChunkData.KIND_STONE else 22.0)
+	var points := PackedVector2Array([
+		Vector2(center.x - half_width, base_y),
+		Vector2(center.x - half_width * 0.58, peak_y + 14.0),
+		Vector2(center.x - half_width * 0.18, peak_y),
+		Vector2(center.x + half_width * 0.23, peak_y + 8.0),
+		Vector2(center.x + half_width * 0.62, peak_y + 19.0),
+		Vector2(center.x + half_width, base_y),
+	])
+	if kind == ChunkData.KIND_STONE:
+		draw_colored_polygon(points, Color("#6B7078"))
+		var lit := PackedVector2Array([
+			Vector2(center.x - half_width * 0.18, peak_y),
+			Vector2(center.x + half_width * 0.23, peak_y + 8.0),
+			Vector2(center.x + half_width * 0.10, base_y - 4.0),
+			Vector2(center.x - half_width * 0.30, base_y - 8.0),
+		])
+		draw_colored_polygon(lit, Color("#8E959E"))
+		draw_polyline(points, Color("#3C4047"), 2.2, true)
+		# 石头矿脉：山体里露出的浅色石脉。
+		draw_line(
+			Vector2(center.x - 14.0, base_y - 6.0),
+			Vector2(center.x + 12.0, peak_y + 17.0),
+			Color("#D5D8D4"),
+			2.4
+		)
+		draw_line(
+			Vector2(center.x - 8.0, base_y - 9.0),
+			Vector2(center.x + 2.0, peak_y + 20.0),
+			Color("#B7BCC0"),
+			1.6
+		)
 	else:
-		draw_circle(center, 12.0, ROCK_DARK)
-		draw_circle(center + Vector2(-1.5, -1.5), 10.0, ROCK_FILL)
-		draw_circle(center + Vector2(-3.0, -3.5), 4.4, ROCK_LIGHT)
+		draw_colored_polygon(points, ROCK_FILL)
+		var rock_lit := PackedVector2Array([
+			Vector2(center.x - half_width * 0.18, peak_y),
+			Vector2(center.x + half_width * 0.23, peak_y + 8.0),
+			Vector2(center.x + half_width * 0.12, base_y - 5.0),
+			Vector2(center.x - half_width * 0.28, base_y - 8.0),
+		])
+		draw_colored_polygon(rock_lit, ROCK_LIGHT)
+		draw_polyline(points, ROCK_DARK, 2.0, true)
+
+
+# ===== 既有绘制工具（木板/栅栏/树苗）==================================
+
+func _draw_placed_block(cell: Vector2i, kind: String) -> void:
+	var origin := Vector2(cell) * float(cell_size)
+	var size := float(cell_size)
+	var fill := Color("#8F918B") if kind == "stone" else Color("#9B9B94")
+	var border := Color("#4D514C") if kind == "stone" else Color("#55564F")
+	var light := Color("#B9BBB3") if kind == "stone" else Color("#C2C0B5")
+	draw_rect(Rect2(origin, Vector2.ONE * size), fill, true)
+	draw_rect(Rect2(origin + Vector2.ONE, Vector2.ONE * (size - 2.0)), light, false, 1.0)
+	draw_rect(Rect2(origin, Vector2.ONE * size), border, false, 2.0)
+	if kind == "stone":
+		draw_circle(origin + Vector2(10.0, 12.0), 4.0, Color(0.74, 0.75, 0.71, 0.45))
+		draw_circle(origin + Vector2(26.0, 25.0), 5.0, Color(0.72, 0.73, 0.69, 0.40))
+		draw_line(
+			origin + Vector2(7.0, 30.0), origin + Vector2(18.0, 20.0),
+			Color(0.82, 0.83, 0.78, 0.35), 1.4
+		)
+	else:
+		for row in 3:
+			var y := origin.y + float(row) * (size / 3.0)
+			draw_line(Vector2(origin.x, y), Vector2(origin.x + size, y), border, 2.0)
+			var offset := 0.0 if row % 2 == 0 else size * 0.5
+			draw_line(
+				Vector2(origin.x + offset, y),
+				Vector2(origin.x + offset, y + size / 3.0),
+				border,
+				2.0
+			)
+
+
+func _draw_furnace(cell: Vector2i) -> void:
+	var origin := Vector2(cell) * float(cell_size)
+	var size := float(cell_size)
+	draw_rect(Rect2(origin, Vector2.ONE * size), Color("#8C8E88"), true)
+	draw_rect(Rect2(origin, Vector2.ONE * size), Color("#4A4C47"), false, 2.0)
+	draw_rect(
+		Rect2(origin + Vector2(7.0, 7.0), Vector2(size - 14.0, size - 14.0)),
+		Color("#6E706A"),
+		true
+	)
+	draw_rect(
+		Rect2(origin + Vector2(10.0, 14.0), Vector2(size - 20.0, size - 22.0)),
+		Color("#242522"),
+		true
+	)
+	var data: Dictionary = furnaces.get(cell, {})
+	var burning := float(data.get("burn_remaining", 0.0)) > 0.0
+	if burning:
+		var glow := 0.65 + 0.25 * absf(sin(Time.get_ticks_msec() / 180.0))
+		draw_circle(
+			origin + Vector2(size * 0.5, size * 0.78),
+			7.0,
+			Color(1.0, 0.48, 0.12, glow)
+		)
+		draw_circle(
+			origin + Vector2(size * 0.5, size * 0.80),
+			3.5,
+			Color(1.0, 0.85, 0.35, glow)
+		)
+	draw_line(
+		origin + Vector2(9.0, 10.0),
+		origin + Vector2(size - 9.0, 10.0),
+		Color("#D0D1C8"),
+		2.0
+	)
 
 
 # ===== 既有绘制工具（木板/栅栏/树苗）==================================
@@ -1320,6 +1642,8 @@ func _fence_solid_extension(cell: Vector2i, direction: Vector2i) -> float:
 		or is_tree_cell(neighbor)
 		or find_nest_root(neighbor) != INVALID_CELL
 		or has_natural_block(neighbor)
+		or has_placed_block(neighbor)
+		or has_furnace(neighbor)
 	):
 		return 4.0
 	return 0.0

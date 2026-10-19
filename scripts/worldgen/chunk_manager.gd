@@ -500,6 +500,12 @@ func apply_overrides(chunk: Vector2i, payload: Dictionary) -> void:
 			block["hp"] = int(overrides["natural_hits"][key])
 			world.natural_blocks[cell] = block
 			world._index_add_cell(cell, "natural", int(block["hp"]))
+	for key in overrides.get("natural_stones", {}).keys():
+		var cell := ChunkStore.parse_cell_key(str(key))
+		if world.has_natural_block(cell):
+			var block: Dictionary = world.natural_blocks[cell]
+			block["stone"] = int(overrides["natural_stones"][key])
+			world.natural_blocks[cell] = block
 	for entry in overrides.get("logs", []):
 		world.place_log(ChunkStore.decode_cell(entry))
 	for entry in overrides.get("planks", []):
@@ -507,6 +513,22 @@ func apply_overrides(chunk: Vector2i, payload: Dictionary) -> void:
 	for entry in overrides.get("fences", []):
 		world.place_fence(ChunkStore.decode_cell(entry))
 	var needs_reindex := false
+	for entry in overrides.get("placed_blocks", []):
+		var cell := ChunkStore.decode_cell(entry.get("cell", [0, 0]))
+		world.placed_blocks[cell] = str(entry.get("kind", "stone"))
+		world._index_add_cell(cell, "block")
+		needs_reindex = true
+	for entry in overrides.get("furnaces", []):
+		var cell := ChunkStore.decode_cell(entry.get("cell", [0, 0]))
+		world.furnaces[cell] = {
+			"inventory": SaveCodec.decode_inventory(entry.get("inventory", {}), 3),
+			"burn_remaining": float(entry.get("burn_remaining", 0.0)),
+			"burn_total": float(entry.get("burn_total", 0.0)),
+			"smelt_progress": float(entry.get("smelt_progress", 0.0)),
+		}
+		world._bind_container_dirty(cell, world.furnaces[cell]["inventory"])
+		world._index_add_cell(cell, "furnace")
+		needs_reindex = true
 	for entry in overrides.get("chests", []):
 		var cell := ChunkStore.decode_cell(entry.get("cell", [0, 0]))
 		if not world.has_chest(cell):

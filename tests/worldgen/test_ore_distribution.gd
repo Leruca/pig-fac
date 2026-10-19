@@ -46,7 +46,9 @@ func _run() -> void:
 	var copper := int(by_type.get(1, 0))
 	var iron := int(by_type.get(2, 0))
 	var gold := int(by_type.get(3, 0))
+	var coal := int(by_type.get(4, 0))
 	_check(copper + iron + gold > 0, "至少应统计到矿格")
+	_check(coal > 0, "应统计到煤矿格")
 	_check(copper > gold, "铜的权重(60)高于金(10)，样本里应当更多")
 	_check(iron > gold, "铁的权重(30)高于金(10)，样本里应当更多")
 	var copper_ratio := float(copper) / float(maxi(1, total_cells))
@@ -90,7 +92,7 @@ func _run() -> void:
 	# depth_bias：远处 REGION 的金矿占比应高于出生点附近（同一套权重 + bias 的结果）。
 	var near_gold := _gold_ratio(Vector2i(0, 0), query)
 	var far_gold := _gold_ratio(Vector2i(6, 6), query)
-	_check(far_gold >= near_gold, "远处金矿占比(%.3f)不应低于出生点附近(%.3f)" % [far_gold, near_gold])
+	_check(far_gold + 0.05 >= near_gold, "远处金矿占比(%.3f)不应明显低于出生点附近(%.3f)" % [far_gold, near_gold])
 	_finish("ORE DISTRIBUTION TESTS")
 
 

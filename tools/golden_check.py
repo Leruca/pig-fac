@@ -78,13 +78,15 @@ def enc_cell(c):
 
 
 def enc_obstacle(o):
-    # 字典键按 utf8 排序：cell, hp, kind
-    body = b"".join([
+    # 字典键按 utf8 排序：cell, hp, kind, stone_amount
+    parts = [
         enc_string("cell") + enc_cell(o["cell"]),
         enc_string("hp") + enc_int(o["hp"]),
         enc_string("kind") + enc_int(o["kind"]),
-    ])
-    return b"d" + (3).to_bytes(4, "big") + body
+    ]
+    if "stone_amount" in o:
+        parts.append(enc_string("stone_amount") + enc_int(o["stone_amount"]))
+    return b"d" + len(parts).to_bytes(4, "big") + b"".join(parts)
 
 
 def enc_ore(o):

@@ -90,6 +90,7 @@ if [ "${1:-}" = "--with-baseline" ]; then
   run_scene runtime res://tests/test_runtime.tscn
   run_scene farm res://tests/test_farm.tscn
   run_scene inventory res://tests/test_inventory.tscn
+  run_scene features res://tests/test_features.tscn
 fi
 
 echo

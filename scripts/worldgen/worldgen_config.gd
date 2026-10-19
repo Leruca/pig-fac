@@ -54,6 +54,11 @@ var tree_chance_millis: int = 384
 var rock_chance_millis: int = 256
 var rock_hp_min: int = 1
 var rock_hp_max: int = 2
+var stone_chance_millis: int = 56
+var stone_hp_min: int = 6
+var stone_hp_max: int = 10
+var stone_amount_min: int = 16
+var stone_amount_max: int = 30
 var tree_hp_min: int = 3
 var tree_hp_max: int = 5
 var tree_footprint: int = 3
@@ -162,6 +167,15 @@ func apply_dict(source: Dictionary) -> void:
 	if rock_hp.size() >= 2:
 		rock_hp_min = maxi(1, int(rock_hp[0]))
 		rock_hp_max = maxi(rock_hp_min, int(rock_hp[1]))
+	stone_chance_millis = clampi(int(obstacle.get("stone_chance_millis", stone_chance_millis)), 0, 1000)
+	var stone_hp: Array = obstacle.get("stone_hp", [stone_hp_min, stone_hp_max])
+	if stone_hp.size() >= 2:
+		stone_hp_min = maxi(1, int(stone_hp[0]))
+		stone_hp_max = maxi(stone_hp_min, int(stone_hp[1]))
+	var stone_amount: Array = obstacle.get("stone_amount", [stone_amount_min, stone_amount_max])
+	if stone_amount.size() >= 2:
+		stone_amount_min = maxi(1, int(stone_amount[0]))
+		stone_amount_max = maxi(stone_amount_min, int(stone_amount[1]))
 	tree_footprint = clampi(int(obstacle.get("tree_footprint", tree_footprint)), 1, 3)
 	tree_ground_pad_millis = clampi(int(obstacle.get("tree_ground_pad_millis", tree_ground_pad_millis)), 0, 1000)
 
@@ -258,8 +272,13 @@ func _apply_ore_defaults() -> void:
 			"vein_size_min": 3, "vein_size_max": 6,
 			"min_cell_amount": 1, "max_cell_amount": 2, "ore_id": 3,
 		},
+		{
+			"id": "coal", "weight": 20, "depth_bias_millis": 120,
+			"vein_size_min": 4, "vein_size_max": 8,
+			"min_cell_amount": 1, "max_cell_amount": 2, "ore_id": 4,
+		},
 	]
-	ore_total_weight = 100
+	ore_total_weight = 120
 
 
 static func _millis(value: Variant) -> int:

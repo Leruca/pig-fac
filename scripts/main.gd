@@ -381,6 +381,9 @@ func _handle_escape() -> void:
 	elif hud.is_nest_open():
 		hud.close_nest()
 		hud.set_hint(_base_hint())
+	elif hud.is_furnace_open():
+		hud.close_furnace()
+		hud.set_hint(_base_hint())
 	elif hud.is_behavior_open():
 		hud.close_behavior()
 		hud.set_hint(_base_hint())
@@ -603,6 +606,7 @@ func _select_pig(pig: Pig) -> void:
 		_park_manual_command(active_pig)
 		hud.close_chest()
 		hud.close_nest()
+		hud.close_furnace()
 		hud.close_behavior()
 		if active_pig != null:
 			active_pig.set_selected(false)
@@ -687,6 +691,14 @@ func _begin_right_drag() -> void:
 				hud.set_hint("先用锤子把这只猪打晕，才能把它捡起来。")
 		else:
 			hud.set_hint("手持锤子才能打晕猪；空手才能捡起晕猪。")
+		return
+
+	# 熔炉：非锤子时右键打开；拿锤子时拆掉。
+	if world_objects.has_furnace(cell) and held_item != "hammer":
+		if not _is_in_interaction_range(cell):
+			_start_auto_action(cell, "", "open_furnace")
+		else:
+			_open_furnace(cell)
 		return
 
 	# 箱子：非锤子时右键打开；拿锤子时交给下面的敲击逻辑拆掉。
@@ -802,6 +814,10 @@ func _execute_command_action_for(pig: Pig, action: Dictionary) -> void:
 			var nest_root := world_objects.find_nest_root(cell)
 			if nest_root != WorldObjects.INVALID_CELL:
 				_open_nest(nest_root)
+		return
+	if action_kind == "open_furnace":
+		if pig == active_pig and world_objects.has_furnace(cell):
+			_open_furnace(cell)
 		return
 	if action_kind == "pickup_pig":
 		if not pig.inventory.get_held_item_id().is_empty():
@@ -1131,6 +1147,14 @@ func _use_held_item(item_id: String, cell: Vector2i, actor: Pig = null) -> void:
 		_place_fence(cell)
 		return
 
+	if item_id == "stone" or item_id == "stone_brick":
+		_place_stone_block(item_id, cell)
+		return
+
+	if item_id == "furnace":
+		_place_furnace(cell)
+		return
+
 	if item_id == "pig":
 		_place_pig(cell)
 		return
@@ -1285,16 +1309,38 @@ func _use_hammer(cell: Vector2i, actor: Pig = null) -> void:
 			])
 		return
 
-	# 石头/灌木：按耐久递减。
+	# 石头/灌木/石头矿脉：按耐久递减；石头矿脉每下会掉石头。
 	if world_objects.has_natural_block(cell):
 		var block := world_objects.get_natural_block(cell)
 		var kind := int(block.get("kind", 0))
+		var stone_remaining := int(block.get("stone", 0))
+		var hits_left := maxi(1, int(block.get("hp", 1)))
+		if stone_remaining > 0:
+			var expected_yield := maxi(1, int(ceil(float(stone_remaining) / float(hits_left))))
+			if user.inventory.get_free_capacity("stone") < expected_yield:
+				hud.set_hint("背包空间不足：这一下会掉落石头 ×%d。" % expected_yield)
+				return
 		var hit_block := world_objects.hit_natural_block(cell)
+		var stone_yield := int(hit_block.get("stone_yield", 0))
+		if stone_yield > 0:
+			user.inventory.add_item("stone", stone_yield)
 		_play_sfx(hammer_sound, 0.92, 1.08, cell)
+		var block_name := "石头矿脉" if kind == ChunkData.KIND_STONE else (
+			"灌木" if kind == ChunkData.KIND_BUSH else "石头"
+		)
 		if bool(hit_block.get("destroyed", false)):
-			hud.set_hint("敲碎了%s。" % ("灌木" if kind == ChunkData.KIND_BUSH else "石头"))
+			if stone_yield > 0:
+				hud.set_hint("采空了%s，获得石头 ×%d。" % [block_name, stone_yield])
+			else:
+				hud.set_hint("敲碎了%s。" % block_name)
 		else:
-			hud.set_hint("还需要敲 %d 下。" % int(hit_block.get("remaining", 0)))
+			if stone_yield > 0:
+				hud.set_hint(
+					"敲击%s，获得石头 ×%d；还需 %d 下。"
+					% [block_name, stone_yield, int(hit_block.get("remaining", 0))]
+				)
+			else:
+				hud.set_hint("还需要敲 %d 下。" % int(hit_block.get("remaining", 0)))
 		return
 
 	var tree_root := world_objects.find_tree_root(cell)
@@ -1367,6 +1413,34 @@ func _use_hammer(cell: Vector2i, actor: Pig = null) -> void:
 		hud.set_hint("拆掉了木栅栏，收回木栅栏 ×1。")
 		return
 
+	if world_objects.has_placed_block(cell):
+		var block_kind := world_objects.get_placed_block(cell)
+		if user.inventory.get_free_capacity(block_kind) < 1:
+			hud.set_hint("背包空间不足，拆方块需要 1 个空位。")
+			return
+		world_objects.remove_placed_block(cell)
+		user.inventory.add_item(block_kind, 1)
+		_play_sfx(hammer_sound, 0.94, 1.06, cell)
+		hud.set_hint("拆掉了一格%s，收回 ×1。" % ItemDB.get_display_name(block_kind))
+		return
+
+	if world_objects.has_furnace(cell):
+		var furnace := world_objects.get_furnace(cell)
+		var furnace_inventory: Inventory = furnace.get("inventory")
+		if furnace_inventory != null and not furnace_inventory.is_empty():
+			hud.set_hint("熔炉里还有矿石、燃料或产物，先清空再拆。")
+			return
+		if user.inventory.get_free_capacity("furnace") < 1:
+			hud.set_hint("背包空间不足，拆熔炉需要 1 个空位。")
+			return
+		world_objects.remove_furnace(cell)
+		if user == active_pig:
+			hud.close_furnace()
+		user.inventory.add_item("furnace", 1)
+		_play_sfx(hammer_sound, 0.94, 1.06, cell)
+		hud.set_hint("拆掉了熔炉，收回熔炉 ×1。")
+		return
+
 	if world_objects.has_chest(cell):
 		var chest_inventory := world_objects.get_chest(cell)
 		if chest_inventory != null and not chest_inventory.is_empty():
@@ -1401,7 +1475,7 @@ func _use_hammer(cell: Vector2i, actor: Pig = null) -> void:
 		hud.set_hint("拆掉了空猪窝，收回猪窝 ×1。")
 		return
 
-	hud.set_hint("锤子可以拆树、木头、木板、栅栏、空箱子和空猪窝。")
+	hud.set_hint("锤子可以拆树、木头、木板、栅栏、石方块、石砖方块、空熔炉、空箱子和空猪窝。")
 
 
 func _play_chop_feedback(tree_root: Vector2i) -> void:
@@ -1516,6 +1590,54 @@ func _place_fence(cell: Vector2i) -> void:
 	hud.set_hint("放下了木栅栏，相邻的栅栏和方块会自动连接。")
 
 
+func _place_stone_block(item_id: String, cell: Vector2i) -> void:
+	if farm.is_tilled(cell):
+		hud.set_hint("石头方块只能放在平地上，不能放在耕地里。")
+		return
+	if world_objects.is_blocked(cell):
+		hud.set_hint("这个格子已经被其他方块或自然物占用了。")
+		return
+	for pig in pigs:
+		if grid.world_to_cell(pig.global_position) == cell:
+			hud.set_hint("不能把方块放在猪脚下的格子里。")
+			return
+	if active_pig.inventory.get_held_item_id() != item_id:
+		hud.set_hint("手持物品已经变化，请重新选择方块。")
+		return
+	if not active_pig.inventory.consume_selected(1):
+		hud.set_hint("手里的方块不够了。")
+		return
+	if not world_objects.place_placed_block(cell, item_id):
+		active_pig.inventory.add_item(item_id, 1)
+		hud.set_hint("方块没能放下，已退回背包。")
+		return
+	hud.set_hint("放下了%s，它占满一整格并阻挡移动。" % ItemDB.get_display_name(item_id))
+
+
+func _place_furnace(cell: Vector2i) -> void:
+	if farm.is_tilled(cell):
+		hud.set_hint("熔炉不能放在耕地上。")
+		return
+	if world_objects.is_blocked(cell):
+		hud.set_hint("这个格子已经被其他方块或自然物占用了。")
+		return
+	for pig in pigs:
+		if grid.world_to_cell(pig.global_position) == cell:
+			hud.set_hint("不能把熔炉放在猪脚下的格子里。")
+			return
+	if active_pig.inventory.get_held_item_id() != "furnace":
+		hud.set_hint("手持物品已经变化，请重新选择熔炉。")
+		return
+	if not active_pig.inventory.consume_selected(1):
+		hud.set_hint("手里的熔炉不够了。")
+		return
+	if world_objects.place_furnace(cell).is_empty():
+		active_pig.inventory.add_item("furnace", 1)
+		hud.set_hint("熔炉没能放下，已退回背包。")
+		return
+	hud.set_hint("放下了熔炉。右键打开，放入矿石和燃料即可熔炼。")
+
+
 func _place_plank(cell: Vector2i) -> void:
 	if farm.is_tilled(cell):
 		hud.set_hint("木板不能放在耕地上，先用铲子把耕地铲平。")
@@ -1597,6 +1719,15 @@ func _open_chest(cell: Vector2i) -> void:
 		return
 	hud.open_chest(chest_inventory, "(%d, %d)" % [cell.x, cell.y])
 	hud.set_hint("箱子已打开：可以在箱子和猪的背包之间拖动整理物品。按 Esc 关闭。")
+
+
+func _open_furnace(cell: Vector2i) -> void:
+	var furnace := world_objects.get_furnace(cell)
+	if furnace.is_empty():
+		hud.set_hint("这个熔炉已经不存在了。")
+		return
+	hud.open_furnace(furnace, "(%d, %d)" % [cell.x, cell.y])
+	hud.set_hint("熔炉已打开：输入矿石，放入木头/木板/煤炭作燃料，产物会进入输出槽。按 Esc 关闭。")
 
 
 func _open_nest(root: Vector2i) -> void:

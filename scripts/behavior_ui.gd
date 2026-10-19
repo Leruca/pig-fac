@@ -9,7 +9,8 @@ signal program_changed
 
 const ITEM_OPTIONS: Array[String] = [
 	"potato", "carrot", "wood", "planks", "stick", "chest", "fence",
-	"sapling", "pig_nest", "pig", "hoe", "super_watering_can", "shovel", "hammer",
+	"stone", "stone_brick", "furnace", "sapling", "pig_nest", "pig",
+	"hoe", "super_watering_can", "shovel", "hammer",
 ]
 const TOOL_OPTIONS := [
 	{"id": "hoe", "name": "锄头"},

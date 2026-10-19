@@ -98,6 +98,11 @@ static func generate(
 				_resolve_rock(seed_value, config, sampler, origin, size, cell, occupied, obstacles)
 			elif config.bush_chance_millis > 0:
 				_resolve_bush(seed_value, config, sampler, origin, size, cell, occupied, obstacles)
+			var stone_bucket := SeedSystem.quick32(
+				seed_value, config.obstacle_salt + 1931, grid_x, grid_y
+			) % 1000
+			if stone_bucket < config.stone_chance_millis:
+				_resolve_stone(seed_value, config, sampler, origin, size, cell, occupied, obstacles)
 
 
 ## 树的消解。注意：**占位与否**与"是否收录进本块"是两件事。
@@ -163,6 +168,35 @@ static func _resolve_rock(
 		"cell": cell,
 		"kind": ChunkData.KIND_ROCK,
 		"hp": config.rock_hp_min + int(SeedSystem.ushr(roll, 23) % span),
+	})
+
+
+static func _resolve_stone(
+	seed_value: int,
+	config: WorldGenConfig,
+	sampler: TerrainSampler,
+	origin: Vector2i,
+	size: int,
+	cell: Vector2i,
+	occupied: Dictionary,
+	obstacles: Array[Dictionary]
+) -> void:
+	if occupied.has(cell):
+		return
+	if not TerrainTypes.is_walkable(sampler.terrain_at(cell.x, cell.y)):
+		return
+	occupied[cell] = true
+	if not _intersects_chunk(cell, 1, origin, size):
+		return
+	var hp_roll := SeedSystem.hash2(seed_value, config.obstacle_salt + 15485863, cell.x, cell.y)
+	var amount_roll := SeedSystem.hash2(seed_value, config.obstacle_salt + 32452843, cell.x, cell.y)
+	var hp_span := config.stone_hp_max - config.stone_hp_min + 1
+	var amount_span := config.stone_amount_max - config.stone_amount_min + 1
+	obstacles.append({
+		"cell": cell,
+		"kind": ChunkData.KIND_STONE,
+		"hp": config.stone_hp_min + int(SeedSystem.ushr(hp_roll, 21) % hp_span),
+		"stone_amount": config.stone_amount_min + int(SeedSystem.ushr(amount_roll, 17) % amount_span),
 	})
 
 
