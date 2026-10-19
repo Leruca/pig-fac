@@ -96,8 +96,11 @@ func _rebuild_map_texture() -> void:
 		var origin: Vector2i = _detail_geometry()["origin_cell"]
 		for local_y in DETAIL_SIDE:
 			for local_x in DETAIL_SIDE:
-				var sample := origin + Vector2i(local_x * DETAIL_CELL_METERS + 8, local_y * DETAIL_CELL_METERS + 8)
-				image.set_pixel(local_x, local_y, _map_cell_color(sample))
+				var block_origin := origin + Vector2i(
+					local_x * DETAIL_CELL_METERS,
+					local_y * DETAIL_CELL_METERS
+				)
+				image.set_pixel(local_x, local_y, DetailMapStyle.color_for_block(game, block_origin))
 	else:
 		var current: Vector2i = game.current_big_block()
 		var origin := current - Vector2i(4, 4)
@@ -154,34 +157,6 @@ func _draw_detail() -> void:
 			_draw_edge_marker(point, map_rect_value)
 
 	draw_rect(map_rect_value, Color(0.62, 0.78, 0.48, 0.35), false, 1.0)
-
-
-## 地图格配色：地形（来自 ChunkManager）→ 农田 → 作物 → 矿/障碍覆盖。
-func _map_cell_color(sample: Vector2i) -> Color:
-	var terrain_type := -1
-	if game.chunk_manager != null:
-		terrain_type = game.chunk_manager.get_cell_terrain(sample)
-	var color := Color(0.10, 0.16, 0.08, 1.0)
-	match terrain_type:
-		TerrainTypes.WATER:
-			color = Color(0.20, 0.38, 0.55, 1.0)
-		TerrainTypes.SAND:
-			color = Color(0.55, 0.50, 0.36, 1.0)
-		TerrainTypes.DIRT:
-			color = Color(0.38, 0.29, 0.18, 1.0)
-		TerrainTypes.GRASS:
-			color = Color(0.18, 0.30, 0.14, 1.0)
-		_:
-			color = Color(0.08, 0.11, 0.07, 1.0)
-	if game.farm.is_tilled(sample):
-		color = Color(0.33, 0.23, 0.13, 1.0)
-	if game.farm.has_crop(sample):
-		color = Color(0.22, 0.45, 0.16, 1.0)
-	if game.world_objects.has_ore(sample):
-		color = Color(0.78, 0.55, 0.20, 1.0)
-	elif game.world_objects.is_blocked(sample):
-		color = Color(0.13, 0.24, 0.11, 1.0)
-	return color
 
 
 func _draw_edge_marker(point: Vector2, map_rect: Rect2) -> void:

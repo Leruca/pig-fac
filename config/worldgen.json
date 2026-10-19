@@ -1,5 +1,5 @@
 {
-  "worldgen_version": 1,
+  "worldgen_version": 2,
   "chunk_size": 255,
   "chunk_radius": 127,
   "spawn_safe_radius_cells": 24,
@@ -81,6 +81,8 @@
         64
       ],
       "min_vein_cells": 3,
+      "vein_total_amount_min": 50000,
+      "vein_total_amount_max": 80000,
       "types": [
         {
           "id": "copper",

@@ -128,7 +128,7 @@ SpawnGuard    -> 出生保护区逐格覆写（最后执行，优先级最高）
 4. 形状：锚点出发的 8 方向随机游走，1/4 概率原地不动（更紧凑），撞自己就跳过（步数不减）。
 5. 地形过滤：落在 WATER 的格剔除；剔除后**整条脉**剩余格数 < `min_vein_cells` 才丢弃
    （不是按本区块交集后的碎片计数）。
-6. 每格 amount 由**本脉独立派生流**给出（只看过滤后的格子顺序），所以整条脉在任何区块里重算都一致。
+6. 每格 amount 由**本脉独立派生流**给出；当 `vein_total_amount_min > 0` 时，先取样整条脉总矿量（当前至少 50,000），再按过滤后的格子均分（余数给前几格），因此整条脉在任何区块里重算都一致。
 7. 类型权重受 `depth_bias_millis` 影响：离出生点越远，金矿/铁矿权重越高（定点，无浮点随机）。
 
 REGION 级缓存只按 `(seed, version, region)` 索引，是纯函数结果的记忆化，不引入顺序依赖；
@@ -218,7 +218,7 @@ world_objects.dematerialize_chunk(chunk)
 | `layers.terrain.*` | `salt`、`noise_scale_q16`、`octaves`、三档阈值 |
 | `layers.eco.*` | `bush_chance_millis`、`tuft_chance_millis`、`flower_chance_millis` |
 | `layers.obstacle.*` | `cell_chunk_cells`、`tree_chance_millis`、`rock_chance_millis`、`tree_hp`、`tree_footprint` |
-| `layers.ore.*` | `region_chunks`、`vein_count_per_region`、`min_vein_cells`、`types[]` |
+| `layers.ore.*` | `region_chunks`、`vein_count_per_region`、`min_vein_cells`、`vein_total_amount_min/max`、`types[]` |
 
 **所有概率/密度都是"每候选点"的千单位整数**（`*_chance_millis`），折算到每格概率
 约为 `chance_millis / 1000 / step^2`。改 `cell_chunk_cells` 时记得同步换算，否则密度会变。

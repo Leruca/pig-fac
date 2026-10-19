@@ -52,15 +52,33 @@ func _run() -> void:
 	var copper_ratio := float(copper) / float(maxi(1, total_cells))
 	_check_almost(copper_ratio, 0.6, 0.25, "铜的比例应接近权重 0.6")
 
-	# 每格 amount 区间与"无单格碎矿"。
+	# 每格 amount 必须为正；总矿量由下面的"整条脉"断言约束。
 	var bad_amount := 0
 	for chunk in chunks:
 		for ore in OreLayer.collect_chunk(SEED, config, chunk, query):
-			var ore_type := config.ore_type_by_id(int(ore["ore_id"]))
 			var amount := int(ore["amount"])
-			if amount < int(ore_type["min_cell_amount"]) or amount > int(ore_type["max_cell_amount"]):
+			if amount <= 0:
 				bad_amount += 1
-	_check_equal(bad_amount, 0, "每格矿量必须在配置区间内（无单格碎矿）")
+	_check_equal(bad_amount, 0, "每格矿量必须为正")
+
+	# 每条脉总矿量至少 vein_total_amount_min（当前 50000）。
+	if config.vein_total_amount_min > 0:
+		var bad_vein_total := 0
+		for region_y in range(-1, 5):
+			for region_x in range(-1, 5):
+				for vein in OreLayer.region_veins(
+					SEED, config, Vector2i(region_x, region_y), query
+				):
+					var total := 0
+					for amount in vein["amounts"]:
+						total += int(amount)
+					if total < config.vein_total_amount_min:
+						bad_vein_total += 1
+		_check_equal(
+			bad_vein_total,
+			0,
+			"每条矿脉总矿量必须 >= %d（无碎矿脉）" % config.vein_total_amount_min
+		)
 
 	# 出生区（区块 (0,0) 的原点附近）统计上应比远处稀疏：这里只验证"确实为 0"。
 	var spawn_ores := 0

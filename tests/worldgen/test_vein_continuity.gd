@@ -87,7 +87,7 @@ func _collect_with_neighbourhood(chunk: Vector2i, radius: int, query: Callable) 
 	)
 	return out
 
-## 任何一条脉过滤后的格数都 >= min_vein_cells；不在水里；amount 在配置区间内。
+## 任何一条脉过滤后的格数都 >= min_vein_cells；不在水里；总矿量 >= 配置下限。
 func _test_no_single_cell_veins() -> void:
 	var query := _terrain_query()
 	var veins := OreLayer.region_veins(SEED, config, Vector2i(0, 0), query)
@@ -101,17 +101,24 @@ func _test_no_single_cell_veins() -> void:
 			too_small += 1
 		var amounts: Array = vein["amounts"]
 		_check_equal(amounts.size(), cells.size(), "每格都应有 amount")
-		var ore_type := config.ore_type_by_id(int(vein["ore_id"]))
+		var vein_total := 0
 		for index in cells.size():
 			var cell: Vector2i = cells[index]
 			if not TerrainTypes.is_walkable(int(query.call(cell))):
 				water_cells += 1
 			var amount := int(amounts[index])
-			if amount < int(ore_type["min_cell_amount"]) or amount > int(ore_type["max_cell_amount"]):
+			if amount <= 0:
 				bad_amount += 1
+			vein_total += amount
+		if config.vein_total_amount_min > 0 and vein_total < config.vein_total_amount_min:
+			bad_amount += 1
 	_check_equal(too_small, 0, "过滤后少于 min_vein_cells 的整条脉必须被丢弃")
 	_check_equal(water_cells, 0, "矿不能生成在水里")
-	_check_equal(bad_amount, 0, "每格 amount 必须落在配置区间内")
+	_check_equal(
+		bad_amount,
+		0,
+		"每格矿量为正，且整条脉总矿量 >= %d" % config.vein_total_amount_min
+	)
 
 
 ## 重叠处 vein_id 小者占优：重复重建、清缓存重建都必须一致。

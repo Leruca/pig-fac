@@ -60,6 +60,8 @@ static func config_fingerprint(config: WorldGenConfig) -> int:
 		str(config.vein_count_min),
 		str(config.vein_count_max),
 		str(config.min_vein_cells),
+		str(config.vein_total_amount_min),
+		str(config.vein_total_amount_max),
 		str(config.depth_bias_radius_cells),
 		str(config.worldgen_version),
 	])
@@ -259,8 +261,18 @@ class RegionBuilder:
 		var amount_span := int(ore_type["max_cell_amount"]) - min_amount + 1
 		var amounts: Array = []
 		var amount_stream := SeedSystem.rng_at_id(_seed, salt + SALT_OFFSET_AMOUNT, vein_id)
-		for _cell in walkable.size():
-			amounts.append(min_amount + amount_stream.next_below(amount_span))
+		if _config.vein_total_amount_min > 0:
+			# 大矿脉：每条脉总矿量至少 50,000，按格子均分（余数给前几格），
+			# 保证整条脉的 amount 求和落在配置区间内。
+			var total_span := _config.vein_total_amount_max - _config.vein_total_amount_min + 1
+			var total_amount := _config.vein_total_amount_min + amount_stream.next_below(total_span)
+			var base_amount := int(total_amount / walkable.size())
+			var remainder := total_amount % walkable.size()
+			for index in walkable.size():
+				amounts.append(base_amount + (1 if index < remainder else 0))
+		else:
+			for _cell in walkable.size():
+				amounts.append(min_amount + amount_stream.next_below(amount_span))
 		veins.append({
 			"vein_id": vein_id,
 			"ore_id": int(ore_type["ore_id"]),

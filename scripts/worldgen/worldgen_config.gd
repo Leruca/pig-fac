@@ -64,6 +64,9 @@ var ore_region_chunks: int = 4
 var vein_count_min: int = 32
 var vein_count_max: int = 64
 var min_vein_cells: int = 3
+## 每条矿脉的总矿量区间；>0 时覆盖旧的每格 min/max_cell_amount。
+var vein_total_amount_min: int = 0
+var vein_total_amount_max: int = 0
 var ore_types: Array[Dictionary] = []
 var ore_total_weight: int = 0
 var depth_bias_radius_cells: int = 600
@@ -170,6 +173,11 @@ func apply_dict(source: Dictionary) -> void:
 		vein_count_min = maxi(0, int(counts[0]))
 		vein_count_max = maxi(vein_count_min, int(counts[1]))
 	min_vein_cells = maxi(1, int(ore.get("min_vein_cells", min_vein_cells)))
+	vein_total_amount_min = maxi(0, int(ore.get("vein_total_amount_min", vein_total_amount_min)))
+	vein_total_amount_max = maxi(
+		vein_total_amount_min,
+		int(ore.get("vein_total_amount_max", vein_total_amount_max))
+	)
 	depth_bias_radius_cells = maxi(1, int(ore.get("depth_bias_radius_cells", depth_bias_radius_cells)))
 	ore_types.clear()
 	ore_total_weight = 0
