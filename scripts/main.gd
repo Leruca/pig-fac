@@ -260,8 +260,9 @@ func _mark_visible_blocks() -> void:
 		if pig != null:
 			_visited_blocks[block_of_cell(grid.world_to_cell(pig.global_position))] = true
 	if chunk_manager != null:
-		# ensure_radius 内部按「中心块是否变化」去重，每帧调用也只是 1 次比较。
-		chunk_manager.ensure_radius(get_center_focus_cell())
+		# 以当前镜头位置为中心预生成 5×5 区块；ensure_radius 只在中心块变化时排队。
+		# 选中猪时相机跟随猪，因此镜头位置仍是实际视野中心。
+		chunk_manager.ensure_radius(grid.world_to_cell(camera.global_position))
 
 
 ## 相机中心格：有选中的猪时用猪的位置（相机跟随它），否则用自由相机位置。
@@ -309,6 +310,9 @@ func ensure_cell_chunk(cell: Vector2i) -> void:
 
 
 func enter_big_block(block: Vector2i) -> void:
+	if not is_block_visited(block):
+		hud.set_hint("该区块尚未探索，不能直接移动镜头。")
+		return
 	_visited_blocks[block] = true
 	var center_cell := block_center_cell(block)
 	var world_center := grid.cell_to_world_center(center_cell)

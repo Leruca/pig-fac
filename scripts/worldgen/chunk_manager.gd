@@ -173,6 +173,9 @@ func ensure_radius(center_cell: Vector2i) -> void:
 	if center == _last_center:
 		return
 	_last_center = center
+	# 当前镜头所在块必须立刻可用，避免镜头跨块时整屏"未生成"底色；
+	# 周围 5×5（ensure_radius_chunks=2）继续走分帧队列预生成。
+	ensure_chunk_now(center)
 	_enqueue_around(center, config.ensure_radius_chunks)
 
 
@@ -180,6 +183,8 @@ func ensure_radius(center_cell: Vector2i) -> void:
 func ensure_chunk_now(chunk: Vector2i) -> ChunkData:
 	if _chunks.has(chunk):
 		_chunks[chunk]["last_used"] = Time.get_ticks_msec() / 1000.0
+		if not bool(_chunks[chunk]["materialized"]):
+			_materialize(chunk, _chunks[chunk]["data"])
 		return _chunks[chunk]["data"]
 	var data := generator.generate_chunk(chunk)
 	_register_chunk(chunk, data)

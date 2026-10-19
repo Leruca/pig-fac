@@ -67,12 +67,12 @@ func open(map_mode: int) -> void:
 	_title_label.text = (
 		"细节地图 · B(%d,%d)" % [_detail_block.x, _detail_block.y]
 		if mode == Mode.DETAIL
-		else "大地图 · 左键进入区块 / 右键命令猪前往"
+		else "大地图 · 左键前往已探索区块 / 右键命令猪前往"
 	)
 	_hint_label.text = (
 		"固定显示当前 16×16 细节格（每格 16m，1m = 2px）；右键让选中猪前往"
 		if mode == Mode.DETAIL
-		else "亮色为已探索，暗色为迷雾；左键进入该区块，右键让选中猪走到区块中心"
+		else "亮色为已探索，暗色为迷雾；镜头只能前往已探索区块，右键可让选中猪走向任意区块中心"
 	)
 	_layout_map()
 	queue_redraw()
@@ -260,6 +260,11 @@ func _gui_input(event: InputEvent) -> void:
 		if mode == Mode.BIG:
 			var block := _block_at(button.position)
 			if block.x != 2147483647:
+				if not game.is_block_visited(block):
+					_hint_label.text = "未探索区块：不能直接移动镜头；先走过去，或右键让猪前往。"
+					game.hud.set_hint("该区块尚未探索，不能直接移动镜头。")
+					accept_event()
+					return
 				game.enter_big_block(block)
 				close()
 		accept_event()

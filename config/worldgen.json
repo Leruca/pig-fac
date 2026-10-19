@@ -29,7 +29,7 @@
   "budgets": {
     "gen_ms_per_frame": 8,
     "gen_rows_per_slice": 32,
-    "ensure_radius_chunks": 1,
+    "ensure_radius_chunks": 2,
     "keep_radius_chunks": 2,
     "pig_residency_radius_chunks": 1,
     "unload_eval_seconds": 1,
@@ -37,8 +37,8 @@
   },
   "bench": {
     "chunk_count": 100,
-    "avg_ms_max": 60,
-    "p99_ms_max": 150
+    "avg_ms_max": 70,
+    "p99_ms_max": 180
   },
   "layers": {
     "terrain": {

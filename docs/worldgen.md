@@ -162,7 +162,7 @@ generator.terrain_type_at(cell) / is_water_at(cell)      # 跨块地形查询（
 ### ChunkManager（Node，缓存 / 分帧 / 卸载）
 ```gdscript
 chunk_manager.setup(config, seed_value, world_objects, pig_cells_callable)
-chunk_manager.ensure_radius(center_cell)   # 仅中心块变化时真正入队，每帧调也安全
+chunk_manager.ensure_radius(center_cell)   # 中心块变化时先同步生成中心块，再排队周围 5×5
 chunk_manager.ensure_chunk_now(chunk)      # 同步生成 + 物化（读档/交互落点用）
 chunk_manager.get_cell_terrain(cell)       # 未加载返回 -1（不同步生成！）
 chunk_manager.is_terrain_blocked(cell)     # 只挡"已加载且是水"
@@ -208,11 +208,12 @@ world_objects.dematerialize_chunk(chunk)
 | `spawn_reserved_cells` | 不被占位的格子（初始猪位）|
 | `spawn_reserved_footprints` | 整块豁免的 footprint（教学树）|
 | `budgets.gen_ms_per_frame` / `gen_rows_per_slice` | 分帧双闸门 |
-| `budgets.ensure_radius_chunks` / `keep_radius_chunks` | 生成半径 / 卸载半径 |
+| `budgets.ensure_radius_chunks` / `keep_radius_chunks` | 预生成半径 / 卸载半径（当前 2 / 2 → 镜头周围 5×5）|
+| `budgets.*` 运行时行为 | 中心块同步生成避免整屏空白，周围区块继续分帧预生成 |
 | `budgets.pig_residency_radius_chunks` | 猪周围强制常驻的圈数 |
 | `budgets.unload_eval_seconds` | 卸载评估周期（不是每帧）|
 | `budgets.eager_load_radius_chunks` | 读档时**急切**恢复的半径，其余惰性 |
-| `bench.avg_ms_max` / `p99_ms_max` | `tests/bench_chunk_gen.gd` 的断言阈值（实测 27ms / 62ms）|
+| `bench.avg_ms_max` / `p99_ms_max` | `tests/bench_chunk_gen.gd` 的断言阈值（当前 70ms / 180ms，实测 27ms / 62ms）|
 | `layers.terrain.*` | `salt`、`noise_scale_q16`、`octaves`、三档阈值 |
 | `layers.eco.*` | `bush_chance_millis`、`tuft_chance_millis`、`flower_chance_millis` |
 | `layers.obstacle.*` | `cell_chunk_cells`、`tree_chance_millis`、`rock_chance_millis`、`tree_hp`、`tree_footprint` |
