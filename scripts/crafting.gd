@@ -6,6 +6,7 @@ extends RefCounted
 ## 1 木头 = 4 木板，2 木板 = 4 木棍，8 木板 = 1 箱子，
 ## 2 木棍 + 4 木棍 = 1 木栅栏（共 6 木棍）。
 ## 锄头/铲子/锤子用木棍 + 石头；超级水壶需要铜锭。
+## 辊压机/冲压机/装配台也在这里合成；最终发电机和肉肉仓在装配台加工。
 
 const RECIPES: Array[Dictionary] = [
 	{
@@ -61,6 +62,24 @@ const RECIPES: Array[Dictionary] = [
 		"output": "super_watering_can",
 		"output_amount": 1,
 		"ingredients": {"copper_ingot": 4, "stick": 2},
+	},
+	{
+		"id": "roller",
+		"output": "roller",
+		"output_amount": 1,
+		"ingredients": {"iron_ingot": 2, "stick": 2, "stone": 4},
+	},
+	{
+		"id": "press",
+		"output": "press",
+		"output_amount": 1,
+		"ingredients": {"iron_ingot": 2, "copper_ingot": 2, "stick": 2, "stone": 2},
+	},
+	{
+		"id": "assembler",
+		"output": "assembler",
+		"output_amount": 1,
+		"ingredients": {"planks": 8, "iron_ingot": 2, "stone": 2},
 	},
 	{
 		"id": "stone_brick",

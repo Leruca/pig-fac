@@ -529,6 +529,21 @@ func apply_overrides(chunk: Vector2i, payload: Dictionary) -> void:
 		world._bind_container_dirty(cell, world.furnaces[cell]["inventory"])
 		world._index_add_cell(cell, "furnace")
 		needs_reindex = true
+	for entry in overrides.get("machines", []):
+		var cell := ChunkStore.decode_cell(entry.get("cell", [0, 0]))
+		var machine_type := str(entry.get("type", ""))
+		if not WorldObjects.MACHINE_TYPES.has(machine_type):
+			continue
+		world.machines[cell] = {
+			"type": machine_type,
+			"pig": SaveCodec.decode(entry.get("pig", {})),
+			"power": float(entry.get("power", 0.0)),
+			"progress": float(entry.get("progress", 0.0)),
+			"output": SaveCodec.decode(entry.get("output", {})),
+			"power_accum": float(entry.get("power_accum", 0.0)),
+		}
+		world._index_add_cell(cell, "machine")
+		needs_reindex = true
 	for entry in overrides.get("chests", []):
 		var cell := ChunkStore.decode_cell(entry.get("cell", [0, 0]))
 		if not world.has_chest(cell):

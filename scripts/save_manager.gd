@@ -356,6 +356,7 @@ func _clear_runtime() -> void:
 	world.fences.clear()
 	world.placed_blocks.clear()
 	world.furnaces.clear()
+	world.machines.clear()
 	world._rebuild_visual_multimeshes()
 	world.nests.clear()
 	world.ores.clear()

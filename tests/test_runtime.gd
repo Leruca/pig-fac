@@ -28,6 +28,7 @@ func _ready() -> void:
 	_test_map_zoom()
 	_test_fps_monitor()
 	_test_bush_sticks()
+	_test_machine_ui()
 
 	if _failures.is_empty():
 		print("RUNTIME TESTS PASSED: 3 pigs, pig cell blocking, collect/place, nest RGB, all blocks, UI.")
@@ -478,3 +479,18 @@ func _test_bush_sticks() -> void:
 	var after := pig.inventory.get_total_count("stick")
 	_check(after > before, "destroying a bush should drop at least one stick")
 	_check(not _main.world_objects.has_natural_block(cell), "destroyed bush should disappear")
+
+
+func _test_machine_ui() -> void:
+	var base: Vector2i = _main.grid.world_to_cell(_main.pigs[0].global_position)
+	var cell: Vector2i = base + Vector2i(0, 6)
+	for _attempt in 40:
+		if not _main.world_objects.is_blocked(cell):
+			break
+		cell += Vector2i(1, 0)
+	_check(not _main.world_objects.place_machine(cell, "roller").is_empty(), "roller should be placeable for UI test")
+	_main._open_machine(cell)
+	_check(_main.hud.is_machine_open(), "machine UI should open")
+	_check(_main.hud._machine_ui._recipe_buttons.size() == 3, "roller UI should list three recipes")
+	_main.hud.close_machine()
+	_check(not _main.hud.is_machine_open(), "machine UI should close")

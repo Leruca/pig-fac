@@ -21,6 +21,7 @@ var _minimap_detail: FarmMinimap
 var _minimap_big: FarmMinimap
 var _map_overlay: FarmMapOverlay
 var _furnace_ui: FurnaceUI
+var _machine_ui: MachineUI
 var _fps_monitor: FPSMonitor
 var esc_menu: EscMenu
 var _hint_toast: PanelContainer
@@ -54,6 +55,7 @@ func _ready() -> void:
 	_build_action_buttons()
 	_build_map_overlay()
 	_build_furnace_ui()
+	_build_machine_ui()
 	_build_esc_menu()
 	_build_fps_monitor()
 	_info_panel.visible = false
@@ -116,6 +118,45 @@ func _build_furnace_ui() -> void:
 	_layout_panels()
 
 
+func open_machine(
+	world: WorldObjects,
+	machine: Dictionary,
+	cell: Vector2i,
+	owner_name: String
+) -> void:
+	close_chest()
+	close_nest()
+	close_furnace()
+	close_machine()
+	close_crafting()
+	close_behavior()
+	if _machine_ui == null:
+		_build_machine_ui()
+	_machine_ui.setup(world, machine, cell, owner_name, _inventory)
+	_machine_ui.visible = true
+	inventory_ui.visible = true
+	_layout_panels.call_deferred()
+
+
+func close_machine() -> void:
+	if _machine_ui != null:
+		_machine_ui.unbind()
+		_machine_ui.visible = false
+
+
+func is_machine_open() -> bool:
+	return _machine_ui != null and _machine_ui.visible
+
+
+func _build_machine_ui() -> void:
+	if _machine_ui != null:
+		return
+	_machine_ui = MachineUI.new()
+	add_child(_machine_ui)
+	_machine_ui.visible = false
+	_layout_panels()
+
+
 func is_esc_menu_open() -> bool:
 	return esc_menu != null and esc_menu.is_open()
 
@@ -133,6 +174,7 @@ func open_esc_menu(
 	close_chest()
 	close_nest()
 	close_furnace()
+	close_machine()
 	close_behavior()
 	close_crafting()
 	esc_menu.open(save_path, muted, has_save, seed_text, fps_visible)
@@ -170,6 +212,7 @@ func _on_minimap_clicked(mode: int) -> void:
 	close_chest()
 	close_nest()
 	close_furnace()
+	close_machine()
 	close_behavior()
 	close_crafting()
 	_map_overlay.open(mode)
@@ -216,6 +259,7 @@ func unbind_pig() -> void:
 	close_chest()
 	close_nest()
 	close_furnace()
+	close_machine()
 	close_behavior()
 	crafting_ui.unbind()
 	crafting_ui.visible = false
@@ -299,6 +343,7 @@ func is_inventory_open() -> bool:
 func open_chest(inventory: Inventory, owner_name: String) -> void:
 	close_nest()
 	close_furnace()
+	close_machine()
 	close_behavior()
 	close_crafting()
 	chest_ui.setup(inventory, owner_name, "箱子")
@@ -321,6 +366,7 @@ func is_chest_open() -> bool:
 func open_nest(nest: Dictionary, owner_name: String) -> void:
 	close_chest()
 	close_furnace()
+	close_machine()
 	close_behavior()
 	close_crafting()
 	nest_ui.setup(nest, owner_name)
@@ -345,6 +391,7 @@ func open_behavior(pig: Pig) -> void:
 	close_chest()
 	close_nest()
 	close_furnace()
+	close_machine()
 	close_crafting()
 	behavior_ui.setup(pig)
 	behavior_ui.visible = true
@@ -371,6 +418,7 @@ func toggle_crafting() -> bool:
 		close_chest()
 		close_nest()
 		close_furnace()
+	close_machine()
 	crafting_ui.toggle()
 	if _craft_button != null:
 		_craft_button.text = "关闭合成" if crafting_ui.visible else "合成 (C)"
@@ -697,6 +745,12 @@ func _layout_panels() -> void:
 		_furnace_ui.position = Vector2(
 			size.x - _furnace_ui.size.x - 24.0,
 			size.y - _furnace_ui.size.y - 24.0
+		)
+	if _machine_ui != null:
+		_machine_ui.reset_size()
+		_machine_ui.position = Vector2(
+			size.x - _machine_ui.size.x - 24.0,
+			size.y - _machine_ui.size.y - 24.0
 		)
 	if _fps_monitor != null:
 		_fps_monitor.reset_size()

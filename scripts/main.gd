@@ -391,6 +391,9 @@ func _handle_escape() -> void:
 	elif hud.is_furnace_open():
 		hud.close_furnace()
 		hud.set_hint(_base_hint())
+	elif hud.is_machine_open():
+		hud.close_machine()
+		hud.set_hint(_base_hint())
 	elif hud.is_behavior_open():
 		hud.close_behavior()
 		hud.set_hint(_base_hint())
@@ -717,6 +720,14 @@ func _begin_right_drag() -> void:
 			hud.set_hint("手持锤子才能打晕猪；空手才能捡起晕猪。")
 		return
 
+	# 产线机器：非锤子时右键打开；拿锤子时拆掉。
+	if world_objects.has_machine(cell) and held_item != "hammer":
+		if not _is_in_interaction_range(cell):
+			_start_auto_action(cell, "", "open_machine")
+		else:
+			_open_machine(cell)
+		return
+
 	# 熔炉：非锤子时右键打开；拿锤子时拆掉。
 	if world_objects.has_furnace(cell) and held_item != "hammer":
 		if not _is_in_interaction_range(cell):
@@ -842,6 +853,10 @@ func _execute_command_action_for(pig: Pig, action: Dictionary) -> void:
 	if action_kind == "open_furnace":
 		if pig == active_pig and world_objects.has_furnace(cell):
 			_open_furnace(cell)
+		return
+	if action_kind == "open_machine":
+		if pig == active_pig and world_objects.has_machine(cell):
+			_open_machine(cell)
 		return
 	if action_kind == "pickup_pig":
 		if not pig.inventory.get_held_item_id().is_empty():
@@ -1179,6 +1194,10 @@ func _use_held_item(item_id: String, cell: Vector2i, actor: Pig = null) -> void:
 		_place_furnace(cell)
 		return
 
+	if ItemDB.get_kind(item_id) == "machine":
+		_place_machine(cell, str(ItemDB.get_item(item_id).get("machine_type", "")))
+		return
+
 	if item_id == "pig":
 		_place_pig(cell)
 		return
@@ -1458,6 +1477,27 @@ func _use_hammer(cell: Vector2i, actor: Pig = null) -> void:
 		hud.set_hint("拆掉了一格%s，收回 ×1。" % ItemDB.get_display_name(block_kind))
 		return
 
+	if world_objects.has_machine(cell):
+		var machine := world_objects.get_machine(cell)
+		var machine_type := str(machine.get("type", ""))
+		var machine_item := machine_type
+		if not (machine.get("pig", {}) as Dictionary).is_empty():
+			hud.set_hint("机器里还有猪，先取出来再拆。")
+			return
+		if not (machine.get("output", {}) as Dictionary).is_empty():
+			hud.set_hint("机器里还有产物，先取出来再拆。")
+			return
+		if user.inventory.get_free_capacity(machine_item) < 1:
+			hud.set_hint("背包空间不足，拆机器需要 1 个空位。")
+			return
+		world_objects.remove_machine(cell)
+		if user == active_pig:
+			hud.close_machine()
+		user.inventory.add_item(machine_item, 1)
+		_play_sfx(hammer_sound, 0.94, 1.06, cell)
+		hud.set_hint("拆掉了%s，收回 ×1。" % WorldObjects.MACHINE_TYPES.get(machine_type, "机器"))
+		return
+
 	if world_objects.has_furnace(cell):
 		var furnace := world_objects.get_furnace(cell)
 		var furnace_inventory: Inventory = furnace.get("inventory")
@@ -1672,6 +1712,34 @@ func _place_furnace(cell: Vector2i) -> void:
 	hud.set_hint("放下了熔炉。右键打开，放入矿石和燃料即可熔炼。")
 
 
+func _place_machine(cell: Vector2i, machine_type: String) -> void:
+	if not WorldObjects.MACHINE_TYPES.has(machine_type):
+		hud.set_hint("这台机器类型无法放置。")
+		return
+	if farm.is_tilled(cell):
+		hud.set_hint("机器不能放在耕地上。")
+		return
+	if world_objects.is_blocked(cell):
+		hud.set_hint("这个格子已经被其他方块或自然物占用了。")
+		return
+	for pig in pigs:
+		if grid.world_to_cell(pig.global_position) == cell:
+			hud.set_hint("不能把机器放在猪脚下的格子里。")
+			return
+	var held_id := active_pig.inventory.get_held_item_id()
+	if held_id.is_empty() or ItemDB.get_kind(held_id) != "machine":
+		hud.set_hint("手持物品已经变化，请重新选择机器。")
+		return
+	if not active_pig.inventory.consume_selected(1):
+		hud.set_hint("手里的机器不够了。")
+		return
+	if world_objects.place_machine(cell, machine_type).is_empty():
+		active_pig.inventory.add_item(held_id, 1)
+		hud.set_hint("机器没能放下，已退回背包。")
+		return
+	hud.set_hint("放下了%s。右键打开，锤子可拆回。" % WorldObjects.MACHINE_TYPES[machine_type])
+
+
 func _place_plank(cell: Vector2i) -> void:
 	if farm.is_tilled(cell):
 		hud.set_hint("木板不能放在耕地上，先用铲子把耕地铲平。")
@@ -1762,6 +1830,15 @@ func _open_furnace(cell: Vector2i) -> void:
 		return
 	hud.open_furnace(furnace, "(%d, %d)" % [cell.x, cell.y])
 	hud.set_hint("熔炉已打开：输入矿石，放入木头/木板/煤炭作燃料，产物会进入输出槽。按 Esc 关闭。")
+
+
+func _open_machine(cell: Vector2i) -> void:
+	var machine := world_objects.get_machine(cell)
+	if machine.is_empty():
+		hud.set_hint("这台机器已经不存在了。")
+		return
+	hud.open_machine(world_objects, machine, cell, "(%d, %d)" % [cell.x, cell.y])
+	hud.set_hint("机器已打开：按面板提示放入猪或材料，按 Esc 关闭。")
 
 
 func _open_nest(root: Vector2i) -> void:

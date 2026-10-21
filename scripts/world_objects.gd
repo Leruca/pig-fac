@@ -47,6 +47,52 @@ const FURNACE_SMELT_RECIPES := {
 	"gold_ore": {"ingot": "gold_ingot", "seconds": 5.0},
 }
 
+## 产线机器 ------------------------------------------------------------
+const MACHINE_TYPES := {
+	"roller": "手摇辊压机",
+	"press": "手摇冲压机",
+	"assembler": "装配台",
+	"pig_generator": "猪力发电机",
+	"meat_storage": "肉肉仓",
+}
+const MACHINE_TEXTURES := {
+	"roller": "res://assets/roller.svg",
+	"press": "res://assets/press.svg",
+	"assembler": "res://assets/assembler.svg",
+	"pig_generator": "res://assets/pig_generator.svg",
+	"meat_storage": "res://assets/meat_storage.svg",
+}
+const PROCESSING_RECIPES := {
+	"roller": [
+		{"output": "iron_plate", "output_amount": 1, "ingredients": {"iron_ingot": 1}},
+		{"output": "copper_plate", "output_amount": 1, "ingredients": {"copper_ingot": 1}},
+		{"output": "gold_plate", "output_amount": 1, "ingredients": {"gold_ingot": 1}},
+	],
+	"press": [
+		{"output": "iron_wire", "output_amount": 2, "ingredients": {"iron_plate": 1}},
+		{"output": "copper_wire", "output_amount": 2, "ingredients": {"copper_plate": 1}},
+		{"output": "gold_wire", "output_amount": 2, "ingredients": {"gold_plate": 1}},
+	],
+	"assembler": [
+		{
+			"output": "pig_generator",
+			"output_amount": 1,
+			"ingredients": {"iron_plate": 4, "copper_wire": 8, "stick": 4},
+		},
+		{
+			"output": "meat_storage",
+			"output_amount": 1,
+			"ingredients": {"iron_plate": 6, "copper_wire": 6, "chest": 1},
+		},
+	],
+}
+const MEAT_PROCESS_SECONDS := 6.0
+const MEAT_POWER_COST := 5.0
+const MEAT_OUTPUT_AMOUNT := 2
+const GENERATOR_POWER_MAX := 100.0
+const GENERATOR_POWER_PER_SECOND := 2.0
+const GENERATOR_POWER_RADIUS := 3
+
 const STEM := Color("#6F4A2B")
 const LEAF_DARK := Color("#3E8436")
 const LEAF_MID := Color("#61AA45")
@@ -87,6 +133,8 @@ var fences: Dictionary = {}
 var placed_blocks: Dictionary = {}
 ## cell -> {"inventory": Inventory(3), "burn_remaining": float, "burn_total": float, "smelt_progress": float}
 var furnaces: Dictionary = {}
+## cell -> {"type": String, "pig": Dictionary, "power": float, "progress": float, "output": Dictionary, "power_accum": float}
+var machines: Dictionary = {}
 ## root -> {"inventory": Inventory(4), "progress": float, "active": bool}
 var nests: Dictionary = {}
 ## cell -> {"ore_id": int, "amount": int, "vein_id": int}
@@ -134,6 +182,7 @@ var _tree_texture: Texture2D
 var _log_texture: Texture2D
 var _chest_texture: Texture2D
 var _nest_texture: Texture2D
+var _machine_textures: Dictionary = {}
 
 
 func _ready() -> void:
@@ -142,6 +191,8 @@ func _ready() -> void:
 	_log_texture = load("res://assets/log.svg") as Texture2D
 	_chest_texture = load("res://assets/chest.svg") as Texture2D
 	_nest_texture = load("res://assets/pig_nest.svg") as Texture2D
+	for machine_type in MACHINE_TEXTURES.keys():
+		_machine_textures[machine_type] = load(str(MACHINE_TEXTURES[machine_type])) as Texture2D
 	_setup_visual_multimeshes()
 	queue_redraw()
 
@@ -259,6 +310,7 @@ func _process(delta: float) -> void:
 	advance_sapling_growth(delta)
 	_advance_nests(delta)
 	_advance_furnaces(delta)
+	_advance_machines(delta)
 	if _blocks_dirty or _ores_dirty:
 		_blocks_dirty = false
 		_ores_dirty = false
@@ -382,6 +434,8 @@ func rebuild_indexes() -> void:
 		_index_add_cell(cell, "block")
 	for cell in furnaces.keys():
 		_index_add_cell(cell, "furnace")
+	for cell in machines.keys():
+		_index_add_cell(cell, "machine")
 	for root in nests.keys():
 		_index_add_nest(root)
 	for cell in ores.keys():
@@ -815,6 +869,206 @@ func _advance_furnaces(delta: float) -> void:
 		_add_to_slot(inventory, FURNACE_SLOT_OUTPUT, ingot, 1)
 		data["smelt_progress"] = 0.0
 		mark_dirty(cell)
+
+
+# ===== 产线机器 ========================================================
+
+func place_machine(cell: Vector2i, machine_type: String) -> Dictionary:
+	if not MACHINE_TYPES.has(machine_type):
+		return {}
+	if is_blocked(cell):
+		return {}
+	var data := {
+		"type": machine_type,
+		"pig": {},
+		"power": 0.0,
+		"progress": 0.0,
+		"output": {},
+		"power_accum": 0.0,
+	}
+	machines[cell] = data
+	_index_add_cell(cell, "machine")
+	mark_dirty(cell)
+	queue_redraw()
+	return data
+
+
+func has_machine(cell: Vector2i) -> bool:
+	return machines.has(cell)
+
+
+func get_machine(cell: Vector2i) -> Dictionary:
+	return machines.get(cell, {})
+
+
+func remove_machine(cell: Vector2i) -> bool:
+	if not machines.has(cell):
+		return false
+	machines.erase(cell)
+	_index_remove_cell(cell)
+	mark_dirty(cell)
+	queue_redraw()
+	return true
+
+
+func get_machine_type(cell: Vector2i) -> String:
+	return str(get_machine(cell).get("type", ""))
+
+
+func get_processing_recipes(machine_type: String) -> Array:
+	return PROCESSING_RECIPES.get(machine_type, [])
+
+
+## 手摇加工一次：直接从操作者背包扣材料、把产物放回背包。
+func process_machine(cell: Vector2i, inventory: Inventory) -> Dictionary:
+	var machine := get_machine(cell)
+	var machine_type := str(machine.get("type", ""))
+	var recipes: Array = PROCESSING_RECIPES.get(machine_type, [])
+	if recipes.is_empty():
+		return {}
+	for recipe_value in recipes:
+		var recipe: Dictionary = recipe_value
+		if not Crafting.can_craft(inventory, recipe):
+			continue
+		var output_id := str(recipe.get("output", ""))
+		var output_amount := int(recipe.get("output_amount", 1))
+		if not inventory.can_add_item(output_id, output_amount):
+			return {"ok": false, "reason": "背包空间不足，产物需要 %d 格。" % output_amount}
+		if not Crafting.craft(inventory, recipe):
+			continue
+		mark_dirty(cell)
+		return {
+			"ok": true,
+			"output": output_id,
+			"output_amount": output_amount,
+		}
+	return {"ok": false, "reason": "材料不足或输入物品不匹配。"}
+
+
+func _advance_machines(delta: float) -> void:
+	if machines.is_empty():
+		return
+	for cell_value in machines.keys():
+		var cell: Vector2i = cell_value
+		var data: Dictionary = machines[cell]
+		var machine_type := str(data.get("type", ""))
+		if machine_type == "pig_generator":
+			var pig: Dictionary = data.get("pig", {})
+			if pig.is_empty():
+				continue
+			var power := minf(
+				GENERATOR_POWER_MAX,
+				float(data.get("power", 0.0)) + GENERATOR_POWER_PER_SECOND * delta
+			)
+			data["power"] = power
+			var power_accum := float(data.get("power_accum", 0.0)) + GENERATOR_POWER_PER_SECOND * delta
+			if power_accum >= 1.0:
+				data["power_accum"] = 0.0
+				mark_dirty(cell)
+			else:
+				data["power_accum"] = power_accum
+		elif machine_type == "meat_storage":
+			var pig: Dictionary = data.get("pig", {})
+			if pig.is_empty() or not (data.get("output", {}) as Dictionary).is_empty():
+				continue
+			if get_power_near(cell) < MEAT_POWER_COST:
+				continue
+			var progress := float(data.get("progress", 0.0)) + delta
+			if progress < MEAT_PROCESS_SECONDS:
+				if floori(progress) != floori(float(data.get("progress", 0.0))):
+					mark_dirty(cell)
+				data["progress"] = progress
+				continue
+			if not consume_power_near(cell, MEAT_POWER_COST):
+				data["progress"] = 0.0
+				continue
+			data["pig"] = {}
+			data["progress"] = 0.0
+			data["output"] = {"item_id": "fresh_meat", "count": MEAT_OUTPUT_AMOUNT}
+			mark_dirty(cell)
+
+
+func get_power_near(cell: Vector2i, radius: int = GENERATOR_POWER_RADIUS) -> float:
+	var total := 0.0
+	for generator_value in machines.keys():
+		var generator_cell: Vector2i = generator_value
+		if absi(generator_cell.x - cell.x) > radius or absi(generator_cell.y - cell.y) > radius:
+			continue
+		var generator: Dictionary = machines[generator_cell]
+		if str(generator.get("type", "")) != "pig_generator":
+			continue
+		if (generator.get("pig", {}) as Dictionary).is_empty():
+			continue
+		total += float(generator.get("power", 0.0))
+	return total
+
+
+func consume_power_near(cell: Vector2i, amount: float, radius: int = GENERATOR_POWER_RADIUS) -> bool:
+	if amount <= 0.0:
+		return true
+	var remaining := amount
+	for generator_value in machines.keys():
+		if remaining <= 0.0:
+			break
+		var generator_cell: Vector2i = generator_value
+		if absi(generator_cell.x - cell.x) > radius or absi(generator_cell.y - cell.y) > radius:
+			continue
+		var generator: Dictionary = machines[generator_cell]
+		if str(generator.get("type", "")) != "pig_generator":
+			continue
+		if (generator.get("pig", {}) as Dictionary).is_empty():
+			continue
+		var power := float(generator.get("power", 0.0))
+		if power <= 0.0:
+			continue
+		var used := minf(power, remaining)
+		generator["power"] = power - used
+		remaining -= used
+		mark_dirty(generator_cell)
+	if remaining > 0.0:
+		return false
+	return true
+
+
+func insert_pig_into_machine(cell: Vector2i, inventory: Inventory) -> bool:
+	var machine := get_machine(cell)
+	if machine.is_empty() or not (machine.get("pig", {}) as Dictionary).is_empty():
+		return false
+	for index in inventory.slot_count:
+		var slot := inventory.get_slot(index)
+		if slot.is_empty() or str(slot.get("item_id", "")) != "pig":
+			continue
+		var stack: Dictionary = slot.duplicate(true)
+		if not inventory.remove_from_slot(index, 1):
+			return false
+		machine["pig"] = stack
+		mark_dirty(cell)
+		return true
+	return false
+
+
+func remove_pig_from_machine(cell: Vector2i, inventory: Inventory) -> bool:
+	var machine := get_machine(cell)
+	var pig: Dictionary = machine.get("pig", {})
+	if pig.is_empty():
+		return false
+	if not inventory.add_item_stack(pig):
+		return false
+	machine["pig"] = {}
+	mark_dirty(cell)
+	return true
+
+
+func collect_machine_output(cell: Vector2i, inventory: Inventory) -> bool:
+	var machine := get_machine(cell)
+	var output: Dictionary = machine.get("output", {})
+	if output.is_empty():
+		return false
+	if not inventory.add_item_stack(output):
+		return false
+	machine["output"] = {}
+	mark_dirty(cell)
+	return true
 
 
 func _furnace_output_accepts(inventory: Inventory, item_id: String, amount: int) -> bool:
@@ -1384,6 +1638,8 @@ func _draw() -> void:
 				pass
 			"furnace":
 				_draw_furnace(cell)
+			"machine":
+				_draw_machine(cell)
 			"chest":
 				if _chest_texture != null:
 					draw_texture_rect(
@@ -1621,6 +1877,35 @@ func _draw_furnace(cell: Vector2i) -> void:
 		Color("#D0D1C8"),
 		2.0
 	)
+
+
+func _draw_machine(cell: Vector2i) -> void:
+	var origin := Vector2(cell) * float(cell_size)
+	var size := float(cell_size)
+	var machine: Dictionary = machines.get(cell, {})
+	var machine_type := str(machine.get("type", ""))
+	var texture: Texture2D = _machine_textures.get(machine_type)
+	draw_rect(Rect2(origin, Vector2.ONE * size), Color(0.10, 0.12, 0.09, 0.55), true)
+	if texture != null:
+		draw_texture_rect(texture, Rect2(origin, Vector2.ONE * size), false)
+	draw_rect(Rect2(origin, Vector2.ONE * size), Color("#3F443C"), false, 1.6)
+	if machine_type == "pig_generator" and not (machine.get("pig", {}) as Dictionary).is_empty():
+		var ratio := clampf(float(machine.get("power", 0.0)) / GENERATOR_POWER_MAX, 0.0, 1.0)
+		draw_rect(
+			Rect2(origin + Vector2(7.0, size - 7.0), Vector2((size - 14.0) * ratio, 3.0)),
+			Color("#8ED56B"),
+			true
+		)
+	elif machine_type == "meat_storage":
+		if not (machine.get("output", {}) as Dictionary).is_empty():
+			draw_circle(origin + Vector2(size - 9.0, 9.0), 4.0, Color("#F08C86"))
+		elif not (machine.get("pig", {}) as Dictionary).is_empty():
+			var ratio := clampf(float(machine.get("progress", 0.0)) / MEAT_PROCESS_SECONDS, 0.0, 1.0)
+			draw_rect(
+				Rect2(origin + Vector2(7.0, size - 7.0), Vector2((size - 14.0) * ratio, 3.0)),
+				Color("#E0B23C"),
+				true
+			)
 
 
 # ===== 既有绘制工具（木板/栅栏/树苗）==================================

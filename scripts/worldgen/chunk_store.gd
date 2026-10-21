@@ -39,6 +39,7 @@ static func build_overrides(
 		"fences": [],
 		"placed_blocks": [],
 		"furnaces": [],
+		"machines": [],
 		"chests": [],
 		"nests": [],
 		"farm": [],
@@ -135,6 +136,20 @@ static func build_overrides(
 			"burn_remaining": float(furnace.get("burn_remaining", 0.0)),
 			"burn_total": float(furnace.get("burn_total", 0.0)),
 			"smelt_progress": float(furnace.get("smelt_progress", 0.0)),
+		})
+	for cell_value in world.machines.keys():
+		var cell: Vector2i = cell_value
+		if not _in_chunk(cell, origin, chunk_size):
+			continue
+		var machine: Dictionary = world.machines[cell]
+		overrides["machines"].append({
+			"cell": _encode_cell(cell),
+			"type": str(machine.get("type", "")),
+			"pig": SaveCodec.encode(machine.get("pig", {})),
+			"power": float(machine.get("power", 0.0)),
+			"progress": float(machine.get("progress", 0.0)),
+			"output": SaveCodec.encode(machine.get("output", {})),
+			"power_accum": float(machine.get("power_accum", 0.0)),
 		})
 	for cell_value in world.chests.keys():
 		var cell: Vector2i = cell_value
@@ -308,6 +323,7 @@ static func _legacy_overrides(payload: Dictionary) -> Dictionary:
 		"fences": [],
 		"placed_blocks": [],
 		"furnaces": [],
+		"machines": [],
 		"chests": [],
 		"nests": [],
 		"farm": [],

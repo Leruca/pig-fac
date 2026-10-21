@@ -11,8 +11,9 @@ func _ready() -> void:
 	_test_furnace_smelting()
 	_test_recipes()
 	_test_tool_recipes()
+	_test_production_line()
 	if _failures.is_empty():
-		print("FEATURE TESTS PASSED: ordinary stone, blocks, furnace smelting, tool recipes.")
+		print("FEATURE TESTS PASSED: stone, blocks, furnace, tools, production line.")
 		get_tree().quit(0)
 	else:
 		for failure in _failures:
@@ -129,6 +130,68 @@ func _test_tool_recipes() -> void:
 			inventory.add_item(str(item_id), int(ingredients[item_id]))
 		_check(Crafting.craft(inventory, recipe), "%s recipe should craft with materials" % tool_id)
 		_check(inventory.get_total_count(str(tool_id)) == 1, "crafted %s should enter inventory" % tool_id)
+
+
+func _test_production_line() -> void:
+	var world := WorldObjects.new()
+	add_child(world)
+	for recipe_id in ["roller", "press", "assembler"]:
+		var recipe := _find_recipe(str(recipe_id))
+		_check(not recipe.is_empty(), "%s machine recipe should exist" % recipe_id)
+		var inventory := Inventory.new(40)
+		var ingredients: Dictionary = recipe.get("ingredients", {})
+		for item_id in ingredients.keys():
+			inventory.add_item(str(item_id), int(ingredients[item_id]))
+		_check(Crafting.craft(inventory, recipe), "%s machine recipe should craft" % recipe_id)
+		_check(inventory.get_total_count(str(recipe_id)) == 1, "%s machine should enter inventory" % recipe_id)
+
+	var roller_cell := Vector2i(1, 1)
+	var press_cell := Vector2i(2, 1)
+	var assembler_cell := Vector2i(3, 1)
+	_check(not world.place_machine(roller_cell, "roller").is_empty(), "roller should be placeable")
+	_check(not world.place_machine(press_cell, "press").is_empty(), "press should be placeable")
+	_check(not world.place_machine(assembler_cell, "assembler").is_empty(), "assembler should be placeable")
+
+	var workshop := Inventory.new(40)
+	workshop.add_item("iron_ingot", 1)
+	var rolled := world.process_machine(roller_cell, workshop)
+	_check(bool(rolled.get("ok", false)), "roller should process iron ingot")
+	_check(workshop.get_total_count("iron_plate") == 1, "roller should output iron plate")
+	var pressed := world.process_machine(press_cell, workshop)
+	_check(bool(pressed.get("ok", false)), "press should process iron plate")
+	_check(workshop.get_total_count("iron_wire") == 2, "press should output two iron wires")
+
+	workshop.add_item("iron_plate", 4)
+	workshop.add_item("copper_wire", 8)
+	workshop.add_item("stick", 4)
+	var assembled := world.process_machine(assembler_cell, workshop)
+	_check(bool(assembled.get("ok", false)), "assembler should build pig generator")
+	_check(workshop.get_total_count("pig_generator") == 1, "assembly should output pig generator")
+	workshop.add_item("iron_plate", 6)
+	workshop.add_item("copper_wire", 6)
+	workshop.add_item("chest", 1)
+	var meat_assembled := world.process_machine(assembler_cell, workshop)
+	_check(bool(meat_assembled.get("ok", false)), "assembler should build meat storage")
+	_check(workshop.get_total_count("meat_storage") == 1, "assembly should output meat storage")
+
+	var generator_cell := Vector2i(6, 6)
+	var meat_cell := Vector2i(7, 6)
+	world.place_machine(generator_cell, "pig_generator")
+	world.place_machine(meat_cell, "meat_storage")
+	var pigs := Inventory.new(40)
+	pigs.add_item("pig", 2)
+	_check(world.insert_pig_into_machine(generator_cell, pigs), "generator should accept a pig")
+	world._advance_machines(10.0)
+	_check(world.get_machine(generator_cell).get("power", 0.0) >= 20.0, "generator should build power")
+	_check(world.insert_pig_into_machine(meat_cell, pigs), "meat storage should accept a pig")
+	world._advance_machines(6.2)
+	var meat_machine := world.get_machine(meat_cell)
+	var output: Dictionary = meat_machine.get("output", {})
+	_check(str(output.get("item_id", "")) == "fresh_meat", "meat storage should produce fresh meat")
+	_check(int(output.get("count", 0)) == 2, "meat storage should produce two fresh meat")
+	_check(world.collect_machine_output(meat_cell, pigs), "produced meat should be collectable")
+	_check(pigs.get_total_count("fresh_meat") == 2, "fresh meat should enter bag")
+	world.queue_free()
 
 
 func _find_recipe(recipe_id: String) -> Dictionary:
