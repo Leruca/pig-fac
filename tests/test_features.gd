@@ -10,8 +10,9 @@ func _ready() -> void:
 	_test_placed_blocks_and_furnace()
 	_test_furnace_smelting()
 	_test_recipes()
+	_test_tool_recipes()
 	if _failures.is_empty():
-		print("FEATURE TESTS PASSED: ordinary stone, blocks, furnace smelting, recipes.")
+		print("FEATURE TESTS PASSED: ordinary stone, blocks, furnace smelting, tool recipes.")
 		get_tree().quit(0)
 	else:
 		for failure in _failures:
@@ -107,6 +108,34 @@ func _test_recipes() -> void:
 		float(WorldObjects.FURNACE_FUEL_SECONDS["wood"]) != float(WorldObjects.FURNACE_FUEL_SECONDS["coal"]),
 		"different fuels should have different burn times"
 	)
+
+
+func _test_tool_recipes() -> void:
+	var expectations := {
+		"hoe": {"stick": 2, "stone": 2},
+		"shovel": {"stick": 2, "stone": 3},
+		"hammer": {"stick": 3, "stone": 4},
+		"super_watering_can": {"copper_ingot": 4, "stick": 2},
+	}
+	for tool_id in expectations.keys():
+		var recipe := _find_recipe(str(tool_id))
+		_check(not recipe.is_empty(), "tool recipe %s should exist" % tool_id)
+		if recipe.is_empty():
+			continue
+		var inventory := Inventory.new(40)
+		_check(not Crafting.craft(inventory, recipe), "%s recipe should need materials" % tool_id)
+		var ingredients: Dictionary = expectations[tool_id]
+		for item_id in ingredients.keys():
+			inventory.add_item(str(item_id), int(ingredients[item_id]))
+		_check(Crafting.craft(inventory, recipe), "%s recipe should craft with materials" % tool_id)
+		_check(inventory.get_total_count(str(tool_id)) == 1, "crafted %s should enter inventory" % tool_id)
+
+
+func _find_recipe(recipe_id: String) -> Dictionary:
+	for recipe in Crafting.RECIPES:
+		if str(recipe.get("id", "")) == recipe_id:
+			return recipe
+	return {}
 
 
 func _check(condition: bool, message: String) -> void:

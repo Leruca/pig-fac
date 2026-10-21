@@ -2,9 +2,10 @@ class_name Crafting
 extends RefCounted
 ## 合成配方与事务式合成逻辑。
 ##
-## 木头 → 木板 → 木棍 / 箱子，木棍 → 木栅栏。配方按用户给定数量：
+## 木头 → 木板 → 木棍 / 箱子，木棍 → 木栅栏；木棍 + 石头可合成基础工具。
 ## 1 木头 = 4 木板，2 木板 = 4 木棍，8 木板 = 1 箱子，
 ## 2 木棍 + 4 木棍 = 1 木栅栏（共 6 木棍）。
+## 锄头/铲子/锤子用木棍 + 石头；超级水壶需要铜锭。
 
 const RECIPES: Array[Dictionary] = [
 	{
@@ -36,6 +37,30 @@ const RECIPES: Array[Dictionary] = [
 		"output": "pig_nest",
 		"output_amount": 1,
 		"ingredients": {"wood": 4, "planks": 4, "chest": 1},
+	},
+	{
+		"id": "hoe",
+		"output": "hoe",
+		"output_amount": 1,
+		"ingredients": {"stick": 2, "stone": 2},
+	},
+	{
+		"id": "shovel",
+		"output": "shovel",
+		"output_amount": 1,
+		"ingredients": {"stick": 2, "stone": 3},
+	},
+	{
+		"id": "hammer",
+		"output": "hammer",
+		"output_amount": 1,
+		"ingredients": {"stick": 3, "stone": 4},
+	},
+	{
+		"id": "super_watering_can",
+		"output": "super_watering_can",
+		"output_amount": 1,
+		"ingredients": {"copper_ingot": 4, "stick": 2},
 	},
 	{
 		"id": "stone_brick",
