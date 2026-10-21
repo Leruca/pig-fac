@@ -5,6 +5,7 @@ extends PanelContainer
 signal area_pick_requested(module_index: int)
 signal container_pick_requested(module_index: int)
 signal position_pick_requested(module_index: int)
+signal machine_pick_requested(module_index: int)
 signal program_changed
 
 const ITEM_OPTIONS: Array[String] = [
@@ -87,6 +88,14 @@ func set_module_container(index: int, cell: Vector2i) -> void:
 	program_changed.emit()
 
 
+func set_module_machine(index: int, cell: Vector2i) -> void:
+	if _pig == null or index < 0 or index >= _pig.behavior_program.size():
+		return
+	_pig.behavior_program[index]["machine_cell"] = cell
+	_refresh()
+	program_changed.emit()
+
+
 func set_runtime_step(text: String) -> void:
 	if _step_label != null:
 		_step_label.text = text
@@ -152,10 +161,11 @@ func _build_layout() -> void:
 	palette.add_theme_constant_override("h_separation", 6)
 	palette.add_theme_constant_override("v_separation", 5)
 	content.add_child(palette)
-	palette.add_child(_make_add_button("移动到位置", "move"))
+	palette.add_child(_make_add_button("移动位置", "move"))
 	palette.add_child(_make_add_button("区域使用工具", "tool"))
 	palette.add_child(_make_add_button("把物品存入容器", "store"))
 	palette.add_child(_make_add_button("从容器拿取物品", "take"))
+	palette.add_child(_make_add_button("操作机器", "machine"))
 
 	_scroll = ScrollContainer.new()
 	_scroll.custom_minimum_size = Vector2(0.0, 180.0)
@@ -268,6 +278,8 @@ func _add_module(type: String) -> void:
 			module = {"type": "store", "container_cell": INVALID_CELL, "item_id": "potato"}
 		"take":
 			module = {"type": "take", "container_cell": INVALID_CELL, "item_id": "potato"}
+		"machine":
+			module = {"type": "machine", "machine_cell": INVALID_CELL}
 		_:
 			return
 	_pig.behavior_program.append(module)
@@ -386,6 +398,8 @@ func _build_module_row(index: int, module: Dictionary) -> Control:
 			body.add_child(_build_tool_controls(index, module))
 		"store", "take":
 			body.add_child(_build_container_controls(index, module))
+		"machine":
+			body.add_child(_build_machine_controls(index, module))
 
 	var delete_button := _make_button("×", 28.0)
 	delete_button.custom_minimum_size = Vector2(28.0, 26.0)
@@ -447,6 +461,35 @@ func _build_container_controls(index: int, module: Dictionary) -> Control:
 	pick.pressed.connect(_request_container.bind(index))
 	top.add_child(pick)
 	return box
+
+
+func _build_machine_controls(index: int, module: Dictionary) -> Control:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 4)
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 6)
+	box.add_child(top)
+	var cell: Vector2i = module.get("machine_cell", INVALID_CELL)
+	var cell_text := "未选择机器"
+	if cell != INVALID_CELL:
+		cell_text = "机器 (%d,%d)" % [cell.x, cell.y]
+	var cell_label := _make_label(cell_text, 11, UIStyle.TEXT_MUTED)
+	cell_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top.add_child(cell_label)
+	var pick := _make_button("选择机器", 86.0)
+	pick.custom_minimum_size = Vector2(86.0, 26.0)
+	pick.pressed.connect(_request_machine.bind(index))
+	top.add_child(pick)
+	box.add_child(_make_label(
+		"自动逻辑：有产物先取出；猪槽空则放猪；辊压/冲压/装配自动加工一次。",
+		10,
+		UIStyle.TEXT_MUTED
+	))
+	return box
+
+
+func _request_machine(index: int) -> void:
+	machine_pick_requested.emit(index)
 
 
 func _make_selector_button(item_id: String, index: int, mode: String) -> Button:
@@ -609,6 +652,8 @@ func _module_title(type: String) -> String:
 			return "把背包物品存入容器"
 		"take":
 			return "从容器拿取物品"
+		"machine":
+			return "操作机器"
 		_:
 			return "未知模块"
 

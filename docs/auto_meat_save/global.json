@@ -1,0 +1,387 @@
+{
+	"audio_muted": false,
+	"camera": {
+		"$vec2": [
+			90.0,
+			18.0
+		]
+	},
+	"fps_visible": true,
+	"next_born_pig_index": 4,
+	"pigs": [
+		{
+			"behavior_area_index": 0,
+			"behavior_module_index": 0,
+			"behavior_program": [
+				{
+					"container_cell": {
+						"$vec2i": [
+							-3,
+							0
+						]
+					},
+					"item_id": "pig",
+					"type": "take"
+				},
+				{
+					"machine_cell": {
+						"$vec2i": [
+							11,
+							-7
+						]
+					},
+					"type": "machine"
+				},
+				{
+					"container_cell": {
+						"$vec2i": [
+							16,
+							2
+						]
+					},
+					"item_id": "fresh_meat",
+					"type": "store"
+				}
+			],
+			"behavior_running": true,
+			"cell": {
+				"$vec2i": [
+					0,
+					0
+				]
+			},
+			"inventory": {
+				"slot_count": 40,
+				"slots": [
+					{
+						"count": 1,
+						"item_id": "hoe"
+					},
+					{
+						"count": 1,
+						"item_id": "super_watering_can"
+					},
+					{
+						"count": 1,
+						"item_id": "shovel"
+					},
+					{
+						"count": 1,
+						"item_id": "hammer"
+					},
+					{
+						"count": 12,
+						"item_id": "potato"
+					},
+					{
+						"count": 6,
+						"item_id": "carrot"
+					},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{}
+				]
+			},
+			"is_stunned": false,
+			"name": "猪 1",
+			"position": {
+				"$vec2": [
+					18.0,
+					18.0
+				]
+			},
+			"rgb": {
+				"$vec3i": [
+					255,
+					170,
+					190
+				]
+			},
+			"target_cell": {
+				"$vec2i": [
+					0,
+					0
+				]
+			},
+			"tint": {
+				"$color": [
+					1.0,
+					1.0,
+					1.0,
+					1.0
+				]
+			}
+		},
+		{
+			"behavior_area_index": 0,
+			"behavior_module_index": 0,
+			"behavior_program": [
+				{
+					"container_cell": {
+						"$vec2i": [
+							-7,
+							0
+						]
+					},
+					"item_id": "potato",
+					"type": "take"
+				},
+				{
+					"container_cell": {
+						"$vec2i": [
+							-3,
+							0
+						]
+					},
+					"item_id": "potato",
+					"type": "store"
+				}
+			],
+			"behavior_running": true,
+			"cell": {
+				"$vec2i": [
+					4,
+					0
+				]
+			},
+			"inventory": {
+				"slot_count": 40,
+				"slots": [
+					{
+						"count": 1,
+						"item_id": "hoe"
+					},
+					{
+						"count": 1,
+						"item_id": "super_watering_can"
+					},
+					{
+						"count": 1,
+						"item_id": "shovel"
+					},
+					{
+						"count": 1,
+						"item_id": "hammer"
+					},
+					{
+						"count": 12,
+						"item_id": "potato"
+					},
+					{
+						"count": 6,
+						"item_id": "carrot"
+					},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{}
+				]
+			},
+			"is_stunned": false,
+			"name": "猪 2",
+			"position": {
+				"$vec2": [
+					162.0,
+					18.0
+				]
+			},
+			"rgb": {
+				"$vec3i": [
+					190,
+					220,
+					255
+				]
+			},
+			"target_cell": {
+				"$vec2i": [
+					4,
+					0
+				]
+			},
+			"tint": {
+				"$color": [
+					0.779999971389771,
+					0.899999976158142,
+					1.0,
+					1.0
+				]
+			}
+		},
+		{
+			"behavior_area_index": 0,
+			"behavior_module_index": 0,
+			"behavior_program": [],
+			"behavior_running": false,
+			"cell": {
+				"$vec2i": [
+					8,
+					0
+				]
+			},
+			"inventory": {
+				"slot_count": 40,
+				"slots": [
+					{
+						"count": 1,
+						"item_id": "hoe"
+					},
+					{
+						"count": 1,
+						"item_id": "super_watering_can"
+					},
+					{
+						"count": 1,
+						"item_id": "shovel"
+					},
+					{
+						"count": 1,
+						"item_id": "hammer"
+					},
+					{
+						"count": 12,
+						"item_id": "potato"
+					},
+					{
+						"count": 6,
+						"item_id": "carrot"
+					},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{}
+				]
+			},
+			"is_stunned": false,
+			"name": "猪 3",
+			"position": {
+				"$vec2": [
+					306.0,
+					18.0
+				]
+			},
+			"rgb": {
+				"$vec3i": [
+					205,
+					255,
+					185
+				]
+			},
+			"target_cell": {
+				"$vec2i": [
+					8,
+					0
+				]
+			},
+			"tint": {
+				"$color": [
+					0.839999973773956,
+					1.0,
+					0.779999971389771,
+					1.0
+				]
+			}
+		}
+	],
+	"seed": "-1973821245971387701",
+	"tick": 1349,
+	"version": 2,
+	"visited_blocks": [
+		[
+			0,
+			0
+		]
+	],
+	"worldgen_version": 4,
+	"zoom": 1.0
+}

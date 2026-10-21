@@ -27,7 +27,7 @@ const PATH_DIRECTIONS := [
 	Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1),
 ]
 
-enum BehaviorPickMode { NONE, AREA, CONTAINER, POSITION }
+enum BehaviorPickMode { NONE, AREA, CONTAINER, POSITION, MACHINE }
 
 const INVALID_CELL := Vector2i(-999999, -999999)
 const BEHAVIOR_INTERACTION_SECONDS := 1.0
@@ -135,6 +135,7 @@ func _ready() -> void:
 	hud.behavior_ui.area_pick_requested.connect(_on_behavior_area_pick_requested)
 	hud.behavior_ui.container_pick_requested.connect(_on_behavior_container_pick_requested)
 	hud.behavior_ui.position_pick_requested.connect(_on_behavior_position_pick_requested)
+	hud.behavior_ui.machine_pick_requested.connect(_on_behavior_machine_pick_requested)
 	hud.behavior_ui.program_changed.connect(_on_behavior_program_changed)
 	hud.pig_selection_requested.connect(_on_minimap_pig_selected)
 	hud.map_command_requested.connect(_on_map_command_requested)
@@ -143,6 +144,8 @@ func _ready() -> void:
 	hud.esc_menu.load_requested.connect(_on_pause_load_requested)
 	hud.esc_menu.volume_toggle_requested.connect(_on_pause_volume_toggle_requested)
 	hud.esc_menu.fps_toggle_requested.connect(_on_pause_fps_toggle_requested)
+	hud.esc_menu.load_slot_requested.connect(_on_pause_load_slot_requested)
+	hud.esc_menu.new_slot_requested.connect(_on_pause_new_slot_requested)
 	hud.esc_menu.new_game_requested.connect(_on_new_game_requested)
 	_save_manager = SaveManager.new()
 	_save_manager.setup(self)
@@ -438,6 +441,37 @@ func _on_pause_load_requested() -> void:
 	get_tree().paused = false
 	hud.close_esc_menu()
 	hud.set_hint(str(result.get("message", "读取成功。")))
+
+
+func _on_pause_load_slot_requested(slot_id: String) -> void:
+	if not SavePaths.set_current_slot(slot_id):
+		hud.esc_menu.set_status("无法切换存档槽。", true)
+		return
+	var result := _save_manager.load_game()
+	var ok := bool(result.get("ok", false))
+	if not ok:
+		hud.esc_menu.set_status(str(result.get("message", "读取失败。")), true)
+		return
+	get_tree().paused = false
+	hud.close_esc_menu()
+	hud.set_hint("已载入存档槽 %s：%s" % [slot_id, str(result.get("message", "读取成功。"))])
+
+
+func _on_pause_new_slot_requested(seed_text: String) -> void:
+	var seed_value := 0
+	if seed_text.is_empty():
+		seed_value = SeedSystem.splitmix64(Time.get_unix_time_from_system() * 1000.0)
+	else:
+		seed_value = SeedSystem.parse_seed(seed_text)
+	var slot_id := SavePaths.create_slot("slot")
+	if slot_id.is_empty():
+		hud.esc_menu.set_status("无法创建新存档槽。", true)
+		return
+	_close_pause_menu()
+	OS.set_environment("PIGFAC_SEED", SeedSystem.seed_to_string(seed_value))
+	var reload_error := get_tree().reload_current_scene()
+	if reload_error != OK:
+		hud.set_hint("新存档槽启动失败（错误码 %d）。" % reload_error)
 
 
 func _on_pause_volume_toggle_requested() -> void:
@@ -2198,6 +2232,17 @@ func _on_behavior_position_pick_requested(module_index: int) -> void:
 	hud.set_hint("左键点击一个格子作为移动目标；Esc 或右键取消。")
 
 
+func _on_behavior_machine_pick_requested(module_index: int) -> void:
+	if active_pig == null or not hud.is_behavior_open():
+		return
+	if module_index < 0 or module_index >= active_pig.behavior_program.size():
+		return
+	_behavior_pick_mode = BehaviorPickMode.MACHINE
+	_behavior_pick_module = module_index
+	behavior_area_overlay.clear()
+	hud.set_hint("左键点击一台已放置的机器；Esc 或右键取消。")
+
+
 func _handle_behavior_pick_input(event: InputEvent) -> bool:
 	if event is InputEventMouseButton:
 		var mouse_button := event as InputEventMouseButton
@@ -2226,6 +2271,10 @@ func _handle_behavior_pick_input(event: InputEvent) -> bool:
 		if _behavior_pick_mode == BehaviorPickMode.POSITION:
 			if mouse_button.pressed:
 				_finish_behavior_position_pick(cell)
+			return true
+		if _behavior_pick_mode == BehaviorPickMode.MACHINE:
+			if mouse_button.pressed:
+				_finish_behavior_machine_pick(cell)
 			return true
 	if event is InputEventMouseMotion:
 		if _behavior_pick_mode == BehaviorPickMode.AREA and _behavior_area_dragging:
@@ -2283,6 +2332,22 @@ func _finish_behavior_position_pick(cell: Vector2i) -> void:
 	_behavior_pick_module = -1
 	behavior_area_overlay.clear()
 	hud.set_hint("已选择移动目标：(%d, %d)。" % [cell.x, cell.y])
+
+
+func _finish_behavior_machine_pick(cell: Vector2i) -> void:
+	if not world_objects.has_machine(cell):
+		hud.set_hint("这里不是已放置的机器，请点击机器任意一格；Esc 取消。")
+		return
+	var root := world_objects.get_machine_root(cell)
+	hud.behavior_ui.set_module_machine(_behavior_pick_module, root)
+	_behavior_pick_mode = BehaviorPickMode.NONE
+	_behavior_pick_module = -1
+	behavior_area_overlay.clear()
+	hud.set_hint("已选择机器：%s (%d, %d)。" % [
+		WorldObjects.MACHINE_TYPES.get(world_objects.get_machine_type(root), "机器"),
+		root.x,
+		root.y,
+	])
 
 
 func _cancel_behavior_pick() -> void:
@@ -2353,6 +2418,8 @@ func _advance_pig_behavior(pig: Pig, delta: float) -> void:
 			_behavior_tick_container(pig, module, true)
 		"take":
 			_behavior_tick_container(pig, module, false)
+		"machine":
+			_behavior_tick_machine(pig, module)
 		_:
 			_advance_behavior_module(pig)
 
@@ -2517,6 +2584,44 @@ func _advance_behavior_module(pig: Pig) -> void:
 	pig.behavior_wait = 0.0
 
 
+func _behavior_tick_machine(pig: Pig, module: Dictionary) -> void:
+	var machine_cell: Vector2i = module.get("machine_cell", INVALID_CELL)
+	if machine_cell == INVALID_CELL or not world_objects.has_machine(machine_cell):
+		pig.behavior_wait = BEHAVIOR_SKIP_DELAY
+		_advance_behavior_module(pig)
+		return
+	var root := world_objects.get_machine_root(machine_cell)
+	if not _is_pig_in_interaction_range(pig, root):
+		if _begin_behavior_move(pig, root, true):
+			return
+		pig.behavior_wait = BEHAVIOR_SKIP_DELAY
+		_advance_behavior_module(pig)
+		return
+	if _behavior_operate_machine(pig, root):
+		pig.behavior_wait = BEHAVIOR_INTERACTION_SECONDS
+	else:
+		pig.behavior_wait = BEHAVIOR_SKIP_DELAY
+		_advance_behavior_module(pig)
+
+
+## 统一的机器自动操作：先收产物，再补猪，最后尝试加工。
+func _behavior_operate_machine(pig: Pig, root: Vector2i) -> bool:
+	var machine := world_objects.get_machine(root)
+	if machine.is_empty():
+		return false
+	var machine_type := str(machine.get("type", ""))
+	var output: Dictionary = machine.get("output", {})
+	if not output.is_empty():
+		return world_objects.collect_machine_output(root, pig.inventory)
+	if machine_type == "pig_generator" or machine_type == "meat_storage":
+		if (machine.get("pig", {}) as Dictionary).is_empty():
+			if _find_inventory_slot(pig.inventory, "pig") >= 0:
+				return world_objects.insert_pig_into_machine(root, pig.inventory)
+		return false
+	var result := world_objects.process_machine(root, pig.inventory)
+	return bool(result.get("ok", false))
+
+
 func _update_behavior_step_label() -> void:
 	if active_pig == null or not hud.is_behavior_open():
 		return
@@ -2566,6 +2671,13 @@ func _update_behavior_step_label() -> void:
 				focus = "(%d, %d)" % [take_cell.x, take_cell.y]
 			else:
 				focus = "未选容器"
+		"machine":
+			type_name = "操作机器"
+			var machine_cell: Vector2i = module.get("machine_cell", INVALID_CELL)
+			if machine_cell != INVALID_CELL:
+				focus = "(%d, %d)" % [machine_cell.x, machine_cell.y]
+			else:
+				focus = "未选机器"
 	hud.behavior_ui.set_runtime_step("步骤 #%d：%s · 关注 %s" % [index + 1, type_name, focus])
 
 

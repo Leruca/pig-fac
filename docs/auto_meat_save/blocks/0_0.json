@@ -1,0 +1,474 @@
+{
+	"chunk": [
+		0,
+		0
+	],
+	"overrides": {
+		"chests": [
+			{
+				"cell": [
+					-7,
+					0
+				],
+				"inventory": {
+					"slot_count": 40,
+					"slots": [
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						}
+					]
+				}
+			},
+			{
+				"cell": [
+					16,
+					2
+				],
+				"inventory": {
+					"slot_count": 40,
+					"slots": [
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{}
+					]
+				}
+			}
+		],
+		"chopped_trees": [],
+		"farm": [],
+		"fences": [],
+		"furnaces": [],
+		"logs": [],
+		"machines": [
+			{
+				"cell": [
+					8,
+					-7
+				],
+				"output": {},
+				"pig": {
+					"count": 1,
+					"item_id": "pig",
+					"pig_inventory": "<RefCounted#-9223371902939034220>",
+					"pig_name": "发电机猪",
+					"pig_rgb": {
+						"$vec3i": [
+							248,
+							164,
+							188
+						]
+					},
+					"pig_tint": {
+						"$color": [
+							0.982156872749329,
+							0.768039226531982,
+							0.829215705394745,
+							1.0
+						]
+					}
+				},
+				"power": 100.0,
+				"power_accum": 0.0,
+				"progress": 0.0,
+				"size": 2,
+				"type": "pig_generator"
+			},
+			{
+				"cell": [
+					11,
+					-7
+				],
+				"output": {},
+				"pig": {
+					"count": 1,
+					"item_id": "pig",
+					"pig_inventory": "<RefCounted#-9223371902922257003>",
+					"pig_name": "肉肉仓猪",
+					"pig_rgb": {
+						"$vec3i": [
+							232,
+							190,
+							170
+						]
+					},
+					"pig_tint": {
+						"$color": [
+							0.941372573375702,
+							0.834313750267029,
+							0.783333361148834,
+							1.0
+						]
+					}
+				},
+				"power": 0.0,
+				"power_accum": 0.0,
+				"progress": 0.0,
+				"size": 3,
+				"type": "meat_storage"
+			}
+		],
+		"mined": {},
+		"natural_hits": {},
+		"natural_stones": {},
+		"nests": [
+			{
+				"active": false,
+				"inventory": {
+					"slot_count": 4,
+					"slots": [
+						{
+							"count": 1,
+							"item_id": "pig",
+							"pig_inventory": {
+								"slot_count": 40,
+								"slots": [
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{}
+								]
+							},
+							"pig_name": "父本",
+							"pig_rgb": {
+								"$vec3i": [
+									240,
+									140,
+									150
+								]
+							},
+							"pig_tint": {
+								"$color": [
+									0.961764693260193,
+									0.70686274766922,
+									0.73235297203064,
+									1.0
+								]
+							}
+						},
+						{
+							"count": 1,
+							"item_id": "pig",
+							"pig_inventory": {
+								"slot_count": 40,
+								"slots": [
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{},
+									{}
+								]
+							},
+							"pig_name": "母本",
+							"pig_rgb": {
+								"$vec3i": [
+									210,
+									160,
+									220
+								]
+							},
+							"pig_tint": {
+								"$color": [
+									0.885294139385223,
+									0.757843136787415,
+									0.910784304141998,
+									1.0
+								]
+							}
+						},
+						{
+							"count": 64,
+							"item_id": "potato"
+						},
+						{}
+					]
+				},
+				"progress": 0.0,
+				"root": [
+					-3,
+					0
+				]
+			}
+		],
+		"placed_blocks": [],
+		"planks": [],
+		"planted_trees": [
+			{
+				"hits": 5,
+				"root": [
+					5,
+					-2
+				]
+			}
+		],
+		"removed_naturals": [],
+		"removed_ores": [],
+		"saplings": [],
+		"tree_hits": {}
+	},
+	"worldgen_version": 4
+}

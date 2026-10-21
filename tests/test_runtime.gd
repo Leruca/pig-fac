@@ -29,6 +29,8 @@ func _ready() -> void:
 	_test_fps_monitor()
 	_test_bush_sticks()
 	_test_machine_ui()
+	_test_machine_behavior()
+	_test_pause_slots()
 
 	if _failures.is_empty():
 		print("RUNTIME TESTS PASSED: 3 pigs, pig cell blocking, collect/place, nest RGB, all blocks, UI.")
@@ -496,3 +498,36 @@ func _test_machine_ui() -> void:
 	_check(_main.hud._machine_ui._recipe_buttons.size() == 3, "roller UI should list three recipes")
 	_main.hud.close_machine()
 	_check(not _main.hud.is_machine_open(), "machine UI should close")
+
+
+func _test_machine_behavior() -> void:
+	var pig: Pig = _main.pigs[0]
+	var base: Vector2i = _main.grid.world_to_cell(pig.global_position)
+	var cell: Vector2i = base + Vector2i(8, 8)
+	var placed := false
+	for _attempt in 40:
+		if not _main.world_objects.place_machine(cell, "pig_generator").is_empty():
+			placed = true
+			break
+		cell += Vector2i(1, 0)
+	_check(placed, "generator should be placeable for behavior test")
+	pig.inventory.add_item("pig", 1)
+	_check(
+		_main._behavior_operate_machine(pig, cell),
+		"machine behavior should insert a bag pig into an empty generator"
+	)
+	_check(
+		not (_main.world_objects.get_machine(cell).get("pig", {}) as Dictionary).is_empty(),
+		"generator should hold the pig after machine behavior"
+	)
+
+
+func _test_pause_slots() -> void:
+	_main._open_pause_menu()
+	_check(_main.hud.esc_menu.visible, "pause menu should open")
+	_check(
+		_main.hud.esc_menu._slot_option != null and _main.hud.esc_menu._slot_option.item_count > 0,
+		"pause menu should list save slots"
+	)
+	_main._close_pause_menu()
+	_check(not _main.hud.esc_menu.visible, "pause menu should close")

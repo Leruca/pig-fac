@@ -4,6 +4,8 @@ extends RefCounted
 ## 绝不把测试数据写进玩家的 user://saves/main。
 
 const DEFAULT_ROOT := "user://saves/main"
+const SLOTS_ROOT := "user://saves/slots"
+const ACTIVE_SLOT_FILE := "user://saves/active_slot.txt"
 
 static var _root_override := ""
 
@@ -16,13 +18,83 @@ static func reset_root() -> void:
 	_root_override = ""
 
 
+static func slot_path(slot_id: String) -> String:
+	if slot_id == "main" or slot_id.is_empty():
+		return DEFAULT_ROOT
+	return "%s/%s" % [SLOTS_ROOT, slot_id]
+
+
+static func current_slot() -> String:
+	if not _root_override.is_empty():
+		return "main"
+	var env := OS.get_environment("PIGFAC_TEST_SAVE_ROOT").strip_edges()
+	if not env.is_empty():
+		return "main"
+	if FileAccess.file_exists(ACTIVE_SLOT_FILE):
+		var id := FileAccess.get_file_as_string(ACTIVE_SLOT_FILE).strip_edges()
+		if not id.is_empty():
+			return id
+	return "main"
+
+
+static func set_current_slot(slot_id: String) -> bool:
+	var clean := slot_id.strip_edges()
+	if clean.is_empty() or clean.contains("/") or clean.contains("\\") or clean == "." or clean == "..":
+		return false
+	var parent := ACTIVE_SLOT_FILE.get_base_dir()
+	if not DirAccess.dir_exists_absolute(parent):
+		if DirAccess.make_dir_recursive_absolute(parent) != OK:
+			return false
+	var file := FileAccess.open(ACTIVE_SLOT_FILE, FileAccess.WRITE)
+	if file == null:
+		return false
+	file.store_string(clean)
+	file.close()
+	return true
+
+
+## 无限存档槽：返回 "main"（旧存档）与 saves/slots 下所有已存在的槽位。
+static func list_slots() -> Array[String]:
+	var out: Array[String] = []
+	if FileAccess.file_exists(DEFAULT_ROOT + "/global.json"):
+		out.append("main")
+	var dir := DirAccess.open(SLOTS_ROOT)
+	if dir != null:
+		for child in dir.get_directories():
+			if FileAccess.file_exists("%s/%s/global.json" % [SLOTS_ROOT, child]):
+				out.append(child)
+	var active := current_slot()
+	if not active.is_empty() and not out.has(active):
+		out.append(active)
+	return out
+
+
+## 创建新槽位（不覆盖任何已有目录），并设为当前槽。
+static func create_slot(prefix: String = "slot") -> String:
+	var base := prefix.strip_edges()
+	if base.is_empty():
+		base = "slot"
+	var index := 1
+	while true:
+		var candidate := "%s_%d" % [base, index]
+		var path := slot_path(candidate)
+		if not DirAccess.dir_exists_absolute(path):
+			if DirAccess.make_dir_recursive_absolute(path + "/blocks") != OK:
+				return ""
+			if not set_current_slot(candidate):
+				return ""
+			return candidate
+		index += 1
+	return ""
+
+
 static func root() -> String:
 	if not _root_override.is_empty():
 		return _root_override
 	var env := OS.get_environment("PIGFAC_TEST_SAVE_ROOT").strip_edges()
 	if not env.is_empty():
 		return env
-	return DEFAULT_ROOT
+	return slot_path(current_slot())
 
 
 static func blocks() -> String:

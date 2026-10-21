@@ -5,6 +5,8 @@ extends Control
 signal resume_requested
 signal save_requested
 signal load_requested
+signal load_slot_requested(slot_id: String)
+signal new_slot_requested(seed_text: String)
 signal volume_toggle_requested
 signal fps_toggle_requested
 signal new_game_requested(seed_text: String)
@@ -17,6 +19,8 @@ var _new_game_button: Button
 var _volume_button: Button
 var _fps_button: Button
 var _load_button: Button
+var _slot_option: OptionButton
+var _slot_ids: Array[String] = []
 var _panel: PanelContainer
 var _seed_text := ""
 var _new_game_armed := false
@@ -53,6 +57,7 @@ func open(
 	if _seed_input != null:
 		_seed_input.text = seed_text
 	_reset_new_game_button()
+	_refresh_slots()
 	_save_path_label.text = "存档目录：%s" % save_path
 	_status_label.text = "游戏已暂停"
 	_status_label.add_theme_color_override("font_color", UIStyle.TEXT_MUTED)
@@ -182,6 +187,27 @@ func _build_layout() -> void:
 	_new_game_button.pressed.connect(_on_new_game_pressed)
 	new_game_row.add_child(_new_game_button)
 
+	var slot_row := HBoxContainer.new()
+	slot_row.add_theme_constant_override("separation", 8)
+	content.add_child(slot_row)
+	slot_row.add_child(_make_label("存档槽：", 12, UIStyle.TEXT_MUTED))
+	_slot_option = OptionButton.new()
+	_slot_option.custom_minimum_size = Vector2(0.0, 32.0)
+	_slot_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_slot_option.add_theme_font_override("font", UIStyle.regular_font())
+	_slot_option.add_theme_font_size_override("font_size", 12)
+	slot_row.add_child(_slot_option)
+	var load_slot_button := _make_button("载入此槽", 32.0)
+	load_slot_button.custom_minimum_size = Vector2(88.0, 32.0)
+	load_slot_button.add_theme_font_size_override("font_size", 12)
+	load_slot_button.pressed.connect(_on_load_slot_pressed)
+	slot_row.add_child(load_slot_button)
+	var new_slot_button := _make_button("新建槽位", 32.0)
+	new_slot_button.custom_minimum_size = Vector2(88.0, 32.0)
+	new_slot_button.add_theme_font_size_override("font_size", 12)
+	new_slot_button.pressed.connect(_on_new_slot_pressed)
+	slot_row.add_child(new_slot_button)
+
 	var separator := ColorRect.new()
 	separator.color = Color(0.72, 0.80, 0.59, 0.14)
 	separator.custom_minimum_size = Vector2(0.0, 1.0)
@@ -228,6 +254,45 @@ func _on_new_game_pressed() -> void:
 		return
 	_reset_new_game_button()
 	new_game_requested.emit(_seed_input.text.strip_edges() if _seed_input != null else "")
+
+
+func _refresh_slots() -> void:
+	if _slot_option == null:
+		return
+	_slot_option.clear()
+	_slot_ids = SavePaths.list_slots()
+	var current := SavePaths.current_slot()
+	var selected := 0
+	for index in _slot_ids.size():
+		var slot_id: String = _slot_ids[index]
+		_slot_option.add_item("存档 %d · %s" % [index + 1, slot_id])
+		if slot_id == current:
+			selected = index
+	if _slot_ids.is_empty():
+		_slot_option.add_item("（空）")
+		_slot_option.disabled = true
+	else:
+		_slot_option.disabled = false
+		_slot_option.select(selected)
+
+
+func _selected_slot_id() -> String:
+	var index := _slot_option.selected
+	if index < 0 or index >= _slot_ids.size():
+		return ""
+	return _slot_ids[index]
+
+
+func _on_load_slot_pressed() -> void:
+	var slot_id := _selected_slot_id()
+	if slot_id.is_empty():
+		set_status("没有可载入的存档槽。", true)
+		return
+	load_slot_requested.emit(slot_id)
+
+
+func _on_new_slot_pressed() -> void:
+	new_slot_requested.emit(_seed_input.text.strip_edges() if _seed_input != null else "")
 
 
 func _reset_new_game_button() -> void:
