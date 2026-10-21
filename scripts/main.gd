@@ -1720,9 +1720,10 @@ func _place_machine(cell: Vector2i, machine_type: String) -> void:
 		hud.set_hint("这台机器类型无法放置。")
 		return
 	var machine_size := int(WorldObjects.MACHINE_SIZES.get(machine_type, 1))
+	var machine_root := WorldObjects.machine_root_for_anchor(cell, machine_size)
 	for y in machine_size:
 		for x in machine_size:
-			var footprint_cell := cell + Vector2i(x, y)
+			var footprint_cell := machine_root + Vector2i(x, y)
 			if farm.is_tilled(footprint_cell):
 				hud.set_hint("机器是 %d×%d，不能放在耕地上。" % [machine_size, machine_size])
 				return
@@ -1744,7 +1745,10 @@ func _place_machine(cell: Vector2i, machine_type: String) -> void:
 		active_pig.inventory.add_item(held_id, 1)
 		hud.set_hint("机器没能放下，已退回背包。")
 		return
-	hud.set_hint("放下了%s。右键打开，锤子可拆回。" % WorldObjects.MACHINE_TYPES[machine_type])
+	var anchor_hint := "以鼠标格为中心" if machine_size >= 3 else "以鼠标格为左上角"
+	hud.set_hint("放下了 %d×%d %s，%s。右键打开，锤子可拆回。" % [
+		machine_size, machine_size, WorldObjects.MACHINE_TYPES[machine_type], anchor_hint
+	])
 
 
 func _place_plank(cell: Vector2i) -> void:

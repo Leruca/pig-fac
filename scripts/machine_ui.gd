@@ -66,6 +66,25 @@ func unbind() -> void:
 	visible = false
 
 
+## Shift 从背包点击时调用：发电机/肉肉仓可直接把猪送入输入口。
+## 加工机器没有内部槽（使用操作者背包），返回 false 让背包走默认逻辑。
+func try_shift_from_inventory(source: Inventory, source_index: int) -> bool:
+	if _world == null or _machine.is_empty() or source != _bag:
+		return false
+	var source_slot := source.get_slot(source_index)
+	if source_slot.is_empty() or str(source_slot.get("item_id", "")) != "pig":
+		return false
+	var machine_type := str(_machine.get("type", ""))
+	if machine_type != "pig_generator" and machine_type != "meat_storage":
+		return false
+	if _world.insert_pig_into_machine(_cell, _bag):
+		_message_label.text = ""
+		_refresh_dynamic()
+		return true
+	_message_label.text = "猪槽已占用或无法放入猪。"
+	return false
+
+
 func is_open() -> bool:
 	return visible
 

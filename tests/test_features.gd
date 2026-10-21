@@ -178,6 +178,8 @@ func _test_production_line() -> void:
 	_check(not world.place_machine(roller_cell, "roller").is_empty(), "roller should be placeable")
 	_check(not world.place_machine(press_cell, "press").is_empty(), "press should be placeable")
 	_check(not world.place_machine(assembler_cell, "assembler").is_empty(), "assembler should be placeable")
+	_check(world.get_machine_root(assembler_cell) == Vector2i(6, 0), "3x3 assembler should center on mouse cell")
+	_check(world.is_blocked(Vector2i(8, 2)), "3x3 assembler should occupy its far corner")
 
 	var workshop := Inventory.new(40)
 	workshop.add_item("iron_ingot", 1)
@@ -205,6 +207,7 @@ func _test_production_line() -> void:
 	var meat_cell := Vector2i(4, 6)
 	world.place_machine(generator_cell, "pig_generator")
 	world.place_machine(meat_cell, "meat_storage")
+	_check(world.get_machine_root(meat_cell) == Vector2i(3, 5), "3x3 meat storage should center on mouse cell")
 	var pigs := Inventory.new(40)
 	pigs.add_item("pig", 2)
 	_check(world.insert_pig_into_machine(generator_cell, pigs), "generator should accept a pig")

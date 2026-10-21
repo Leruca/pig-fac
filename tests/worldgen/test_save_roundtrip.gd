@@ -335,18 +335,31 @@ func _test_sapling_cross_chunk_maturity() -> void:
 func _test_machine_roundtrip() -> void:
 	var chunk := Vector2i(5, 5)
 	_ensure(chunk)
-	var cells := _free_cells(chunk, 1)
+	var cells := _free_cells(chunk, 20)
 	if cells.is_empty():
 		_check(false, "machine roundtrip needs a free cell")
 		return
-	var cell: Vector2i = cells[0]
-	_check(not _world.place_machine(cell, "assembler").is_empty(), "machine should be placeable")
-	var machine := _world.get_machine(cell)
+	var root := WorldObjects.INVALID_CELL
+	for candidate in cells:
+		var ok := true
+		for y in 3:
+			for x in 3:
+				if _world.is_blocked(candidate + Vector2i(x, y)):
+					ok = false
+		if ok:
+			root = candidate
+			break
+	if root == WorldObjects.INVALID_CELL:
+		_check(false, "3x3 machine roundtrip needs nine free cells")
+		return
+	var anchor := root + Vector2i(1, 1)
+	_check(not _world.place_machine(anchor, "assembler").is_empty(), "machine should be placeable")
+	var machine := _world.get_machine(root)
 	machine["power"] = 12.5
 	machine["pig"] = {"item_id": "pig", "count": 1}
 	machine["progress"] = 2.5
 	machine["output"] = {"item_id": "fresh_meat", "count": 2}
-	_world.mark_dirty(cell)
+	_world.mark_dirty(root)
 	_check(_manager.is_dirty(chunk), "placing a machine should dirty its chunk")
 	var result := _manager.flush_chunk(chunk)
 	_check(bool(result.get("ok", false)), "machine chunk should save")
@@ -354,9 +367,10 @@ func _test_machine_roundtrip() -> void:
 	var overrides: Dictionary = payload.get("overrides", {})
 	_check(overrides.get("machines", []).size() >= 1, "machine should be written to overrides")
 	_reload(chunk)
-	_check(_world.has_machine(cell), "machine should reload from overrides")
-	_check(_world.get_machine_type(cell) == "assembler", "machine type should roundtrip")
-	var reloaded := _world.get_machine(cell)
+	_check(_world.has_machine(anchor), "machine should reload from overrides")
+	_check(_world.get_machine_type(anchor) == "assembler", "machine type should roundtrip")
+	var reloaded := _world.get_machine(anchor)
+	_check(_world.get_machine_root(anchor) == root, "3x3 machine root should roundtrip")
 	_check(absf(float(reloaded.get("power", 0.0)) - 12.5) < 0.01, "machine power should roundtrip")
 	_check(not (reloaded.get("pig", {}) as Dictionary).is_empty(), "machine pig should roundtrip")
 	_check(int((reloaded.get("output", {}) as Dictionary).get("count", 0)) == 2, "machine output should roundtrip")

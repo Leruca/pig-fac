@@ -138,6 +138,7 @@ func open_machine(
 	_machine_ui.setup(world, machine, cell, owner_name, _inventory)
 	_machine_ui.visible = true
 	inventory_ui.visible = true
+	inventory_ui.set_transfer_handler(_machine_ui.try_shift_from_inventory)
 	_layout_panels.call_deferred()
 
 
@@ -145,6 +146,8 @@ func close_machine() -> void:
 	if _machine_ui != null:
 		_machine_ui.unbind()
 		_machine_ui.visible = false
+	if inventory_ui != null:
+		inventory_ui.set_transfer_handler(Callable())
 
 
 func is_machine_open() -> bool:

@@ -59,9 +59,9 @@ const MACHINE_TYPES := {
 const MACHINE_SIZES := {
 	"roller": 2,
 	"press": 2,
-	"assembler": 1,
+	"assembler": 3,
 	"pig_generator": 2,
-	"meat_storage": 1,
+	"meat_storage": 3,
 }
 const MACHINE_TEXTURES := {
 	"roller": "res://assets/roller.svg",
@@ -814,6 +814,14 @@ func get_furnace_root(cell: Vector2i) -> Vector2i:
 	return furnace_cells.get(cell, INVALID_CELL)
 
 
+## 机器放置锚点：3×3 以鼠标格为中心，2×2 / 1×1 以鼠标格为左上角。
+static func machine_root_for_anchor(cell: Vector2i, size: int) -> Vector2i:
+	if size >= 3:
+		var offset := floori(float(size - 1) * 0.5)
+		return cell - Vector2i(offset, offset)
+	return cell
+
+
 func _register_furnace_cells(root: Vector2i, size: int) -> void:
 	for cell in _footprint_cells(root, size):
 		furnace_cells[cell] = root
@@ -947,7 +955,8 @@ func place_machine(cell: Vector2i, machine_type: String) -> Dictionary:
 	if not MACHINE_TYPES.has(machine_type):
 		return {}
 	var size := int(MACHINE_SIZES.get(machine_type, 1))
-	for footprint_cell in _footprint_cells(cell, size):
+	var root := machine_root_for_anchor(cell, size)
+	for footprint_cell in _footprint_cells(root, size):
 		if is_blocked(footprint_cell):
 			return {}
 	var data := {
@@ -959,9 +968,9 @@ func place_machine(cell: Vector2i, machine_type: String) -> Dictionary:
 		"output": {},
 		"power_accum": 0.0,
 	}
-	machines[cell] = data
-	_register_machine_cells(cell, size)
-	for footprint_cell in _footprint_cells(cell, size):
+	machines[root] = data
+	_register_machine_cells(root, size)
+	for footprint_cell in _footprint_cells(root, size):
 		mark_dirty(footprint_cell)
 	queue_redraw()
 	return data
