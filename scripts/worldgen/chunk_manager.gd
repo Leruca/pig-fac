@@ -520,7 +520,16 @@ func apply_overrides(chunk: Vector2i, payload: Dictionary) -> void:
 		needs_reindex = true
 	for entry in overrides.get("furnaces", []):
 		var cell := ChunkStore.decode_cell(entry.get("cell", [0, 0]))
-		var furnace_size := int(entry.get("size", 1))
+		var furnace_size := int(entry.get("size", 0))
+		if furnace_size <= 0:
+			# 旧档没有 size：空间够就迁移到 2×2，否则保留原来的 1×1。
+			furnace_size = WorldObjects.FURNACE_SIZE
+			for y in furnace_size:
+				for x in furnace_size:
+					if x == 0 and y == 0:
+						continue
+					if world.is_blocked(cell + Vector2i(x, y)):
+						furnace_size = 1
 		world.furnaces[cell] = {
 			"inventory": SaveCodec.decode_inventory(entry.get("inventory", {}), 3),
 			"size": furnace_size,
@@ -536,7 +545,15 @@ func apply_overrides(chunk: Vector2i, payload: Dictionary) -> void:
 		var machine_type := str(entry.get("type", ""))
 		if not WorldObjects.MACHINE_TYPES.has(machine_type):
 			continue
-		var machine_size := int(entry.get("size", 1))
+		var machine_size := int(entry.get("size", 0))
+		if machine_size <= 0:
+			machine_size = int(WorldObjects.MACHINE_SIZES.get(machine_type, 1))
+			for y in machine_size:
+				for x in machine_size:
+					if x == 0 and y == 0:
+						continue
+					if world.is_blocked(cell + Vector2i(x, y)):
+						machine_size = 1
 		world.machines[cell] = {
 			"type": machine_type,
 			"size": machine_size,
