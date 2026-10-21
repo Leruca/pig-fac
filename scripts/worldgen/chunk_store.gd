@@ -132,6 +132,7 @@ static func build_overrides(
 		var furnace: Dictionary = world.furnaces[cell]
 		overrides["furnaces"].append({
 			"cell": _encode_cell(cell),
+			"size": int(furnace.get("size", WorldObjects.FURNACE_SIZE)),
 			"inventory": SaveCodec.encode_inventory(furnace.get("inventory")),
 			"burn_remaining": float(furnace.get("burn_remaining", 0.0)),
 			"burn_total": float(furnace.get("burn_total", 0.0)),
@@ -145,6 +146,7 @@ static func build_overrides(
 		overrides["machines"].append({
 			"cell": _encode_cell(cell),
 			"type": str(machine.get("type", "")),
+			"size": int(machine.get("size", 1)),
 			"pig": SaveCodec.encode(machine.get("pig", {})),
 			"power": float(machine.get("power", 0.0)),
 			"progress": float(machine.get("progress", 0.0)),

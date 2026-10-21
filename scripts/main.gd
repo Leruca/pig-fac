@@ -1689,16 +1689,19 @@ func _place_stone_block(item_id: String, cell: Vector2i) -> void:
 
 
 func _place_furnace(cell: Vector2i) -> void:
-	if farm.is_tilled(cell):
-		hud.set_hint("熔炉不能放在耕地上。")
-		return
-	if world_objects.is_blocked(cell):
-		hud.set_hint("这个格子已经被其他方块或自然物占用了。")
-		return
-	for pig in pigs:
-		if grid.world_to_cell(pig.global_position) == cell:
-			hud.set_hint("不能把熔炉放在猪脚下的格子里。")
-			return
+	for y in WorldObjects.FURNACE_SIZE:
+		for x in WorldObjects.FURNACE_SIZE:
+			var footprint_cell := cell + Vector2i(x, y)
+			if farm.is_tilled(footprint_cell):
+				hud.set_hint("熔炉是 2×2，不能放在耕地上。")
+				return
+			if world_objects.is_blocked(footprint_cell):
+				hud.set_hint("熔炉是 2×2，这个范围内已经有其他方块或自然物。")
+				return
+			for pig in pigs:
+				if grid.world_to_cell(pig.global_position) == footprint_cell:
+					hud.set_hint("熔炉是 2×2，不能压在猪脚下。")
+					return
 	if active_pig.inventory.get_held_item_id() != "furnace":
 		hud.set_hint("手持物品已经变化，请重新选择熔炉。")
 		return
@@ -1709,23 +1712,27 @@ func _place_furnace(cell: Vector2i) -> void:
 		active_pig.inventory.add_item("furnace", 1)
 		hud.set_hint("熔炉没能放下，已退回背包。")
 		return
-	hud.set_hint("放下了熔炉。右键打开，放入矿石和燃料即可熔炼。")
+	hud.set_hint("放下了 2×2 熔炉，以鼠标格为左上角。右键打开，放入矿石和燃料即可熔炼。")
 
 
 func _place_machine(cell: Vector2i, machine_type: String) -> void:
 	if not WorldObjects.MACHINE_TYPES.has(machine_type):
 		hud.set_hint("这台机器类型无法放置。")
 		return
-	if farm.is_tilled(cell):
-		hud.set_hint("机器不能放在耕地上。")
-		return
-	if world_objects.is_blocked(cell):
-		hud.set_hint("这个格子已经被其他方块或自然物占用了。")
-		return
-	for pig in pigs:
-		if grid.world_to_cell(pig.global_position) == cell:
-			hud.set_hint("不能把机器放在猪脚下的格子里。")
-			return
+	var machine_size := int(WorldObjects.MACHINE_SIZES.get(machine_type, 1))
+	for y in machine_size:
+		for x in machine_size:
+			var footprint_cell := cell + Vector2i(x, y)
+			if farm.is_tilled(footprint_cell):
+				hud.set_hint("机器是 %d×%d，不能放在耕地上。" % [machine_size, machine_size])
+				return
+			if world_objects.is_blocked(footprint_cell):
+				hud.set_hint("机器是 %d×%d，这个范围内已经有其他方块或自然物。" % [machine_size, machine_size])
+				return
+			for pig in pigs:
+				if grid.world_to_cell(pig.global_position) == footprint_cell:
+					hud.set_hint("机器是 %d×%d，不能压在猪脚下。" % [machine_size, machine_size])
+					return
 	var held_id := active_pig.inventory.get_held_item_id()
 	if held_id.is_empty() or ItemDB.get_kind(held_id) != "machine":
 		hud.set_hint("手持物品已经变化，请重新选择机器。")
@@ -1833,11 +1840,15 @@ func _open_furnace(cell: Vector2i) -> void:
 
 
 func _open_machine(cell: Vector2i) -> void:
-	var machine := world_objects.get_machine(cell)
+	var root := world_objects.get_machine_root(cell)
+	if root == WorldObjects.INVALID_CELL:
+		hud.set_hint("这台机器已经不存在了。")
+		return
+	var machine := world_objects.get_machine(root)
 	if machine.is_empty():
 		hud.set_hint("这台机器已经不存在了。")
 		return
-	hud.open_machine(world_objects, machine, cell, "(%d, %d)" % [cell.x, cell.y])
+	hud.open_machine(world_objects, machine, root, "(%d, %d)" % [root.x, root.y])
 	hud.set_hint("机器已打开：按面板提示放入猪或材料，按 Esc 关闭。")
 
 

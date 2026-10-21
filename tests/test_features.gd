@@ -9,6 +9,7 @@ func _ready() -> void:
 	_test_worldgen_stone()
 	_test_placed_blocks_and_furnace()
 	_test_furnace_smelting()
+	_test_furnace_shift()
 	_test_recipes()
 	_test_tool_recipes()
 	_test_production_line()
@@ -79,8 +80,13 @@ func _test_furnace_smelting() -> void:
 	var world := WorldObjects.new()
 	add_child(world)
 	var furnace := world.place_furnace(Vector2i(5, 5))
+	_check(not furnace.is_empty(), "2x2 furnace should be placeable")
 	var inventory: Inventory = furnace["inventory"]
 	inventory.add_item("copper_ore", 1)
+	for index in 12:
+		world._advance_furnaces(0.5)
+	_check(inventory.get_slot(WorldObjects.FURNACE_SLOT_OUTPUT).is_empty(), "furnace must not smelt without fuel")
+	_check(float(world.get_furnace(Vector2i(5, 5)).get("smelt_progress", 0.0)) == 0.0, "furnace progress must reset without fuel")
 	inventory.add_item("wood", 1)
 	for index in 11:
 		world._advance_furnaces(0.5)
@@ -88,6 +94,27 @@ func _test_furnace_smelting() -> void:
 	_check(str(output.get("item_id", "")) == "copper_ingot", "furnace should smelt copper ore into copper ingot")
 	_check(int(output.get("count", 0)) == 1, "furnace should produce exactly one ingot")
 	_check(inventory.get_slot(WorldObjects.FURNACE_SLOT_INPUT).is_empty(), "furnace should consume one ore")
+	_check(world.get_furnace_root(Vector2i(6, 6)) == Vector2i(5, 5), "2x2 furnace should occupy all four cells")
+	world.queue_free()
+
+
+func _test_furnace_shift() -> void:
+	var world := WorldObjects.new()
+	add_child(world)
+	var furnace := world.place_furnace(Vector2i(9, 9))
+	var furnace_inventory: Inventory = furnace["inventory"]
+	var bag := Inventory.new(40)
+	bag.add_item("copper_ore", 1)
+	bag.add_item("wood", 1)
+	var ui := FurnaceUI.new()
+	add_child(ui)
+	ui.setup(furnace, "test")
+	ui.set_bag_inventory(bag)
+	_check(ui.try_auto_store_from_inventory(bag, 0), "shift should route ore into furnace input")
+	_check(furnace_inventory.get_total_count("copper_ore") == 1, "furnace input should receive shifted ore")
+	_check(ui.try_auto_store_from_inventory(bag, 1), "shift should route fuel into furnace fuel slot")
+	_check(furnace_inventory.get_total_count("wood") == 1, "furnace fuel should receive shifted wood")
+	ui.queue_free()
 	world.queue_free()
 
 
@@ -146,8 +173,8 @@ func _test_production_line() -> void:
 		_check(inventory.get_total_count(str(recipe_id)) == 1, "%s machine should enter inventory" % recipe_id)
 
 	var roller_cell := Vector2i(1, 1)
-	var press_cell := Vector2i(2, 1)
-	var assembler_cell := Vector2i(3, 1)
+	var press_cell := Vector2i(4, 1)
+	var assembler_cell := Vector2i(7, 1)
 	_check(not world.place_machine(roller_cell, "roller").is_empty(), "roller should be placeable")
 	_check(not world.place_machine(press_cell, "press").is_empty(), "press should be placeable")
 	_check(not world.place_machine(assembler_cell, "assembler").is_empty(), "assembler should be placeable")
@@ -174,8 +201,8 @@ func _test_production_line() -> void:
 	_check(bool(meat_assembled.get("ok", false)), "assembler should build meat storage")
 	_check(workshop.get_total_count("meat_storage") == 1, "assembly should output meat storage")
 
-	var generator_cell := Vector2i(6, 6)
-	var meat_cell := Vector2i(7, 6)
+	var generator_cell := Vector2i(1, 6)
+	var meat_cell := Vector2i(4, 6)
 	world.place_machine(generator_cell, "pig_generator")
 	world.place_machine(meat_cell, "meat_storage")
 	var pigs := Inventory.new(40)

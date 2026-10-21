@@ -35,6 +35,7 @@ const NEST_SLOT_OUTPUT := 3
 const FURNACE_SLOT_INPUT := 0
 const FURNACE_SLOT_FUEL := 1
 const FURNACE_SLOT_OUTPUT := 2
+const FURNACE_SIZE := 2
 const FURNACE_SMELT_SECONDS := 5.0
 const FURNACE_FUEL_SECONDS := {
 	"wood": 20.0,
@@ -54,6 +55,13 @@ const MACHINE_TYPES := {
 	"assembler": "装配台",
 	"pig_generator": "猪力发电机",
 	"meat_storage": "肉肉仓",
+}
+const MACHINE_SIZES := {
+	"roller": 2,
+	"press": 2,
+	"assembler": 1,
+	"pig_generator": 2,
+	"meat_storage": 1,
 }
 const MACHINE_TEXTURES := {
 	"roller": "res://assets/roller.svg",
@@ -133,8 +141,12 @@ var fences: Dictionary = {}
 var placed_blocks: Dictionary = {}
 ## cell -> {"inventory": Inventory(3), "burn_remaining": float, "burn_total": float, "smelt_progress": float}
 var furnaces: Dictionary = {}
+## cell -> root（2×2 熔炉占四个格子）
+var furnace_cells: Dictionary = {}
 ## cell -> {"type": String, "pig": Dictionary, "power": float, "progress": float, "output": Dictionary, "power_accum": float}
 var machines: Dictionary = {}
+## cell -> root（部分机器 2×2）
+var machine_cells: Dictionary = {}
 ## root -> {"inventory": Inventory(4), "progress": float, "active": bool}
 var nests: Dictionary = {}
 ## cell -> {"ore_id": int, "amount": int, "vein_id": int}
@@ -413,6 +425,8 @@ func clear_indexes() -> void:
 	_cell_index.clear()
 	_tree_index.clear()
 	_nest_index.clear()
+	furnace_cells.clear()
+	machine_cells.clear()
 
 
 ## 从现有字典重建全部索引（读档/测试兜底）。
@@ -433,9 +447,9 @@ func rebuild_indexes() -> void:
 	for cell in placed_blocks.keys():
 		_index_add_cell(cell, "block")
 	for cell in furnaces.keys():
-		_index_add_cell(cell, "furnace")
+		_register_furnace_cells(cell, int(furnaces[cell].get("size", FURNACE_SIZE)))
 	for cell in machines.keys():
-		_index_add_cell(cell, "machine")
+		_register_machine_cells(cell, int(machines[cell].get("size", 1)))
 	for root in nests.keys():
 		_index_add_nest(root)
 	for cell in ores.keys():
@@ -788,39 +802,73 @@ func remove_placed_block(cell: Vector2i) -> bool:
 	return true
 
 
-func place_furnace(cell: Vector2i) -> Dictionary:
-	if is_blocked(cell):
-		return {}
+func _footprint_cells(root: Vector2i, size: int) -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	for y in size:
+		for x in size:
+			cells.append(root + Vector2i(x, y))
+	return cells
+
+
+func get_furnace_root(cell: Vector2i) -> Vector2i:
+	return furnace_cells.get(cell, INVALID_CELL)
+
+
+func _register_furnace_cells(root: Vector2i, size: int) -> void:
+	for cell in _footprint_cells(root, size):
+		furnace_cells[cell] = root
+		_index_add_cell(cell, "furnace")
+
+
+func _unregister_furnace_cells(root: Vector2i) -> void:
+	var data: Dictionary = furnaces.get(root, {})
+	var size := int(data.get("size", FURNACE_SIZE))
+	for cell in _footprint_cells(root, size):
+		furnace_cells.erase(cell)
+		_index_remove_cell(cell)
+
+
+func place_furnace(root: Vector2i) -> Dictionary:
+	for cell in _footprint_cells(root, FURNACE_SIZE):
+		if is_blocked(cell):
+			return {}
 	var inventory := Inventory.new(3)
 	var data := {
 		"inventory": inventory,
+		"size": FURNACE_SIZE,
 		"burn_remaining": 0.0,
 		"burn_total": 0.0,
 		"smelt_progress": 0.0,
 	}
-	furnaces[cell] = data
-	_index_add_cell(cell, "furnace")
-	_bind_container_dirty(cell, inventory)
-	mark_dirty(cell)
+	furnaces[root] = data
+	_register_furnace_cells(root, FURNACE_SIZE)
+	_bind_container_dirty(root, inventory)
+	for cell in _footprint_cells(root, FURNACE_SIZE):
+		mark_dirty(cell)
 	queue_redraw()
 	return data
 
 
 func has_furnace(cell: Vector2i) -> bool:
-	return furnaces.has(cell)
+	return furnace_cells.has(cell)
 
 
 func get_furnace(cell: Vector2i) -> Dictionary:
-	return furnaces.get(cell, {})
+	var root := get_furnace_root(cell)
+	if root == INVALID_CELL:
+		return {}
+	return furnaces.get(root, {})
 
 
 func remove_furnace(cell: Vector2i) -> bool:
-	if not furnaces.has(cell):
+	var root := get_furnace_root(cell)
+	if root == INVALID_CELL:
 		return false
-	_unbind_container_dirty(cell)
-	furnaces.erase(cell)
-	_index_remove_cell(cell)
-	mark_dirty(cell)
+	_unbind_container_dirty(root)
+	_unregister_furnace_cells(root)
+	furnaces.erase(root)
+	for footprint_cell in _footprint_cells(root, FURNACE_SIZE):
+		mark_dirty(footprint_cell)
 	queue_redraw()
 	return true
 
@@ -854,6 +902,10 @@ func _advance_furnaces(delta: float) -> void:
 			burn = maxf(0.0, burn - delta)
 			data["burn_remaining"] = burn
 
+		# 没有正在燃烧的燃料时，熔炉绝不能推进熔炼进度。
+		if burn <= 0.0:
+			data["smelt_progress"] = 0.0
+			continue
 		if not can_smelt:
 			data["smelt_progress"] = 0.0
 			continue
@@ -873,13 +925,34 @@ func _advance_furnaces(delta: float) -> void:
 
 # ===== 产线机器 ========================================================
 
+func get_machine_root(cell: Vector2i) -> Vector2i:
+	return machine_cells.get(cell, INVALID_CELL)
+
+
+func _register_machine_cells(root: Vector2i, size: int) -> void:
+	for cell in _footprint_cells(root, size):
+		machine_cells[cell] = root
+		_index_add_cell(cell, "machine")
+
+
+func _unregister_machine_cells(root: Vector2i) -> void:
+	var data: Dictionary = machines.get(root, {})
+	var size := int(data.get("size", 1))
+	for cell in _footprint_cells(root, size):
+		machine_cells.erase(cell)
+		_index_remove_cell(cell)
+
+
 func place_machine(cell: Vector2i, machine_type: String) -> Dictionary:
 	if not MACHINE_TYPES.has(machine_type):
 		return {}
-	if is_blocked(cell):
-		return {}
+	var size := int(MACHINE_SIZES.get(machine_type, 1))
+	for footprint_cell in _footprint_cells(cell, size):
+		if is_blocked(footprint_cell):
+			return {}
 	var data := {
 		"type": machine_type,
+		"size": size,
 		"pig": {},
 		"power": 0.0,
 		"progress": 0.0,
@@ -887,26 +960,34 @@ func place_machine(cell: Vector2i, machine_type: String) -> Dictionary:
 		"power_accum": 0.0,
 	}
 	machines[cell] = data
-	_index_add_cell(cell, "machine")
-	mark_dirty(cell)
+	_register_machine_cells(cell, size)
+	for footprint_cell in _footprint_cells(cell, size):
+		mark_dirty(footprint_cell)
 	queue_redraw()
 	return data
 
 
 func has_machine(cell: Vector2i) -> bool:
-	return machines.has(cell)
+	return machine_cells.has(cell)
 
 
 func get_machine(cell: Vector2i) -> Dictionary:
-	return machines.get(cell, {})
+	var root := get_machine_root(cell)
+	if root == INVALID_CELL:
+		return {}
+	return machines.get(root, {})
 
 
 func remove_machine(cell: Vector2i) -> bool:
-	if not machines.has(cell):
+	var root := get_machine_root(cell)
+	if root == INVALID_CELL:
 		return false
-	machines.erase(cell)
-	_index_remove_cell(cell)
-	mark_dirty(cell)
+	var data: Dictionary = machines.get(root, {})
+	var size := int(data.get("size", 1))
+	_unregister_machine_cells(root)
+	machines.erase(root)
+	for footprint_cell in _footprint_cells(root, size):
+		mark_dirty(footprint_cell)
 	queue_redraw()
 	return true
 
@@ -1637,9 +1718,11 @@ func _draw() -> void:
 			"block":
 				pass
 			"furnace":
-				_draw_furnace(cell)
+				if get_furnace_root(cell) == cell:
+					_draw_furnace(cell)
 			"machine":
-				_draw_machine(cell)
+				if get_machine_root(cell) == cell:
+					_draw_machine(cell)
 			"chest":
 				if _chest_texture != null:
 					draw_texture_rect(
@@ -1673,6 +1756,19 @@ func _visible_cell_entries() -> Array[Vector2i]:
 			for cell in bucket.keys():
 				if _cell_visible(cell):
 					_visible_cell_entries_cache[cell] = bucket[cell]
+	# 2×2 熔炉/机器的根格可能在视口外，但只要 footprint 任一格可见就必须画完整机器。
+	for cell_value in _visible_cell_entries_cache.keys().duplicate():
+		var cell: Vector2i = cell_value
+		var root := INVALID_CELL
+		if furnace_cells.has(cell):
+			root = furnace_cells[cell]
+		elif machine_cells.has(cell):
+			root = machine_cells[cell]
+		if root == INVALID_CELL or _visible_cell_entries_cache.has(root):
+			continue
+		var root_bucket: Variant = _cell_index.get(bucket_of(root))
+		if root_bucket is Dictionary and root_bucket.has(root):
+			_visible_cell_entries_cache[root] = root_bucket[root]
 	return _visible_cell_entries_cache.keys()
 
 
@@ -1844,8 +1940,10 @@ func _draw_placed_block(cell: Vector2i, kind: String) -> void:
 
 
 func _draw_furnace(cell: Vector2i) -> void:
+	var data: Dictionary = furnaces.get(cell, {})
+	var footprint := int(data.get("size", FURNACE_SIZE))
 	var origin := Vector2(cell) * float(cell_size)
-	var size := float(cell_size)
+	var size := float(cell_size * footprint)
 	draw_rect(Rect2(origin, Vector2.ONE * size), Color("#8C8E88"), true)
 	draw_rect(Rect2(origin, Vector2.ONE * size), Color("#4A4C47"), false, 2.0)
 	draw_rect(
@@ -1858,17 +1956,16 @@ func _draw_furnace(cell: Vector2i) -> void:
 		Color("#242522"),
 		true
 	)
-	var data: Dictionary = furnaces.get(cell, {})
 	var burning := float(data.get("burn_remaining", 0.0)) > 0.0
 	if burning:
 		draw_circle(
 			origin + Vector2(size * 0.5, size * 0.78),
-			7.0,
+			7.0 * float(footprint),
 			Color(1.0, 0.48, 0.12, 0.82)
 		)
 		draw_circle(
 			origin + Vector2(size * 0.5, size * 0.80),
-			3.5,
+			3.5 * float(footprint),
 			Color(1.0, 0.85, 0.35, 0.9)
 		)
 	draw_line(
@@ -1880,9 +1977,10 @@ func _draw_furnace(cell: Vector2i) -> void:
 
 
 func _draw_machine(cell: Vector2i) -> void:
-	var origin := Vector2(cell) * float(cell_size)
-	var size := float(cell_size)
 	var machine: Dictionary = machines.get(cell, {})
+	var footprint := int(machine.get("size", 1))
+	var origin := Vector2(cell) * float(cell_size)
+	var size := float(cell_size * footprint)
 	var machine_type := str(machine.get("type", ""))
 	var texture: Texture2D = _machine_textures.get(machine_type)
 	draw_rect(Rect2(origin, Vector2.ONE * size), Color(0.10, 0.12, 0.09, 0.55), true)

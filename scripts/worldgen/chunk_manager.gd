@@ -520,29 +520,33 @@ func apply_overrides(chunk: Vector2i, payload: Dictionary) -> void:
 		needs_reindex = true
 	for entry in overrides.get("furnaces", []):
 		var cell := ChunkStore.decode_cell(entry.get("cell", [0, 0]))
+		var furnace_size := int(entry.get("size", 1))
 		world.furnaces[cell] = {
 			"inventory": SaveCodec.decode_inventory(entry.get("inventory", {}), 3),
+			"size": furnace_size,
 			"burn_remaining": float(entry.get("burn_remaining", 0.0)),
 			"burn_total": float(entry.get("burn_total", 0.0)),
 			"smelt_progress": float(entry.get("smelt_progress", 0.0)),
 		}
 		world._bind_container_dirty(cell, world.furnaces[cell]["inventory"])
-		world._index_add_cell(cell, "furnace")
+		world._register_furnace_cells(cell, furnace_size)
 		needs_reindex = true
 	for entry in overrides.get("machines", []):
 		var cell := ChunkStore.decode_cell(entry.get("cell", [0, 0]))
 		var machine_type := str(entry.get("type", ""))
 		if not WorldObjects.MACHINE_TYPES.has(machine_type):
 			continue
+		var machine_size := int(entry.get("size", 1))
 		world.machines[cell] = {
 			"type": machine_type,
+			"size": machine_size,
 			"pig": SaveCodec.decode(entry.get("pig", {})),
 			"power": float(entry.get("power", 0.0)),
 			"progress": float(entry.get("progress", 0.0)),
 			"output": SaveCodec.decode(entry.get("output", {})),
 			"power_accum": float(entry.get("power_accum", 0.0)),
 		}
-		world._index_add_cell(cell, "machine")
+		world._register_machine_cells(cell, machine_size)
 		needs_reindex = true
 	for entry in overrides.get("chests", []):
 		var cell := ChunkStore.decode_cell(entry.get("cell", [0, 0]))

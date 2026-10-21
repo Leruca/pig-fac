@@ -23,6 +23,7 @@ func _ready() -> void:
 	_test_farm_roundtrip()
 	_test_sapling_cross_chunk_maturity()
 	_test_machine_roundtrip()
+	_test_furnace_2x2_roundtrip()
 	_test_clean_chunk_not_persisted()
 	_cleanup_files()
 	_finish("SAVE ROUNDTRIP TESTS")
@@ -339,7 +340,7 @@ func _test_machine_roundtrip() -> void:
 		_check(false, "machine roundtrip needs a free cell")
 		return
 	var cell: Vector2i = cells[0]
-	_check(not _world.place_machine(cell, "roller").is_empty(), "machine should be placeable")
+	_check(not _world.place_machine(cell, "assembler").is_empty(), "machine should be placeable")
 	var machine := _world.get_machine(cell)
 	machine["power"] = 12.5
 	machine["pig"] = {"item_id": "pig", "count": 1}
@@ -354,11 +355,37 @@ func _test_machine_roundtrip() -> void:
 	_check(overrides.get("machines", []).size() >= 1, "machine should be written to overrides")
 	_reload(chunk)
 	_check(_world.has_machine(cell), "machine should reload from overrides")
-	_check(_world.get_machine_type(cell) == "roller", "machine type should roundtrip")
+	_check(_world.get_machine_type(cell) == "assembler", "machine type should roundtrip")
 	var reloaded := _world.get_machine(cell)
 	_check(absf(float(reloaded.get("power", 0.0)) - 12.5) < 0.01, "machine power should roundtrip")
 	_check(not (reloaded.get("pig", {}) as Dictionary).is_empty(), "machine pig should roundtrip")
 	_check(int((reloaded.get("output", {}) as Dictionary).get("count", 0)) == 2, "machine output should roundtrip")
+
+
+func _test_furnace_2x2_roundtrip() -> void:
+	var chunk := Vector2i(6, 6)
+	_ensure(chunk)
+	var cells := _free_cells(chunk, 8)
+	var root := WorldObjects.INVALID_CELL
+	for candidate in cells:
+		var ok := true
+		for y in 2:
+			for x in 2:
+				if _world.is_blocked(candidate + Vector2i(x, y)):
+					ok = false
+		if ok:
+			root = candidate
+			break
+	if root == WorldObjects.INVALID_CELL:
+		_check(false, "2x2 furnace roundtrip needs four free cells")
+		return
+	_check(not _world.place_furnace(root).is_empty(), "2x2 furnace should place")
+	_check(_world.has_furnace(root + Vector2i(1, 1)), "2x2 furnace should occupy all four cells")
+	_check(_manager.is_dirty(chunk), "2x2 furnace should dirty chunk")
+	_check(bool(_manager.flush_chunk(chunk).get("ok", false)), "2x2 furnace chunk should save")
+	_reload(chunk)
+	_check(_world.has_furnace(root + Vector2i(1, 1)), "2x2 furnace should reload all cells")
+	_check(_world.get_furnace_root(root + Vector2i(1, 1)) == root, "2x2 furnace root should roundtrip")
 
 
 func _test_clean_chunk_not_persisted() -> void:

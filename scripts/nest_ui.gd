@@ -245,16 +245,8 @@ func _on_nest_slot_gui_input(event: InputEvent, index: int) -> void:
 	var source_slot := _inventory.get_slot(index)
 	if source_slot.is_empty():
 		return
-	var item_id := str(source_slot.get("item_id", ""))
-	for _attempt in 80:
-		if _inventory.get_slot(index).is_empty():
-			break
-		var target_index := _find_bag_target(item_id)
-		if target_index < 0:
-			break
-		if not _inventory.move_stack_to(_bag_inventory, index, target_index):
-			break
-	_refresh()
+	if InventoryTransfer.shift_to_inventory(_inventory, _bag_inventory, index):
+		_refresh()
 	_slots[index].accept_event()
 
 

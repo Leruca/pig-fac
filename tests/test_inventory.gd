@@ -14,6 +14,7 @@ func _ready() -> void:
 	_test_selection_and_consumption()
 	_test_capacity_helpers()
 	_test_inventory_transfers()
+	_test_generic_shift_transfer()
 	_test_crafting()
 	_test_pig_item_metadata()
 
@@ -171,6 +172,24 @@ func _test_inventory_transfers() -> void:
 	_check(swap_source.move_stack_to(swap_source, 0, 1), "different items should swap")
 	_check(swap_source.get_held_item_id() == "hoe", "selected slot should show the swapped-in item")
 	_check(swap_source.get_total_count("wood") == 3, "swap should preserve both stacks")
+
+
+func _test_generic_shift_transfer() -> void:
+	var bag := Inventory.new(40)
+	var equipment := Inventory.new(3)
+	bag.add_item("wood", 5)
+	_check(
+		InventoryTransfer.shift_to_slot(bag, equipment, 0, 1),
+		"shift should move a bag stack into a fixed equipment slot"
+	)
+	_check(equipment.get_total_count("wood") == 5, "equipment slot should receive the whole stack")
+	_check(bag.get_slot(0).is_empty(), "source bag slot should empty after shift")
+	_check(
+		InventoryTransfer.shift_to_inventory(equipment, bag, 1),
+		"shift should move an equipment stack back to bag"
+	)
+	_check(bag.get_total_count("wood") == 5, "bag should receive equipment stack")
+	_check(InventoryTransfer.find_target_slot(equipment, "wood", [1]) == 1, "preferred empty slot should win")
 
 
 func _test_crafting() -> void:

@@ -484,11 +484,13 @@ func _test_bush_sticks() -> void:
 func _test_machine_ui() -> void:
 	var base: Vector2i = _main.grid.world_to_cell(_main.pigs[0].global_position)
 	var cell: Vector2i = base + Vector2i(0, 6)
+	var placed := false
 	for _attempt in 40:
-		if not _main.world_objects.is_blocked(cell):
+		if not _main.world_objects.place_machine(cell, "roller").is_empty():
+			placed = true
 			break
 		cell += Vector2i(1, 0)
-	_check(not _main.world_objects.place_machine(cell, "roller").is_empty(), "roller should be placeable for UI test")
+	_check(placed, "roller should be placeable for UI test")
 	_main._open_machine(cell)
 	_check(_main.hud.is_machine_open(), "machine UI should open")
 	_check(_main.hud._machine_ui._recipe_buttons.size() == 3, "roller UI should list three recipes")

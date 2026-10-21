@@ -97,12 +97,15 @@ func open_furnace(furnace: Dictionary, owner_name: String) -> void:
 	_furnace_ui.set_bag_inventory(_inventory)
 	_furnace_ui.visible = true
 	inventory_ui.visible = true
+	inventory_ui.set_transfer_handler(_furnace_ui.try_auto_store_from_inventory)
 
 
 func close_furnace() -> void:
 	if _furnace_ui != null:
 		_furnace_ui.unbind()
 		_furnace_ui.visible = false
+	if inventory_ui != null:
+		inventory_ui.set_transfer_handler(Callable())
 
 
 func is_furnace_open() -> bool:

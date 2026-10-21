@@ -266,35 +266,19 @@ func _on_slot_gui_input(event: InputEvent, index: int) -> void:
 func _transfer_stack_to_target(index: int) -> bool:
 	if _inventory == null or _transfer_target == null or _transfer_target == _inventory:
 		return false
-	if _inventory.get_slot(index).is_empty():
-		return false
-	var moved_any := false
-	# 目标槽可能先合并已有半堆，再继续占用空槽，直到整堆转移完。
-	for _attempt in 80:
-		if _inventory.get_slot(index).is_empty():
-			break
-		var target_index := _find_transfer_target_slot(index)
-		if target_index < 0:
-			break
-		if not _inventory.move_stack_to(_transfer_target, index, target_index):
-			break
-		moved_any = true
-	return moved_any
+	return InventoryTransfer.shift_to_inventory(_inventory, _transfer_target, index)
 
 
 func _find_transfer_target_slot(source_index: int) -> int:
+	if _inventory == null or _transfer_target == null:
+		return -1
 	var source := _inventory.get_slot(source_index)
 	if source.is_empty():
 		return -1
-	var item_id := str(source.get("item_id", ""))
-	var max_stack := ItemDB.get_max_stack(item_id)
-	for index in _transfer_target.slot_count:
-		var slot := _transfer_target.get_slot(index)
-		if slot.is_empty():
-			return index
-		if str(slot.get("item_id", "")) == item_id and int(slot.get("count", 0)) < max_stack:
-			return index
-	return -1
+	return InventoryTransfer.find_target_slot(
+		_transfer_target,
+		str(source.get("item_id", ""))
+	)
 
 
 func handle_slot_drop(data: Dictionary, target_index: int) -> void:

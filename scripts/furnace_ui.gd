@@ -262,33 +262,32 @@ func _on_slot_gui_input(event: InputEvent, index: int) -> void:
 		return
 	if not Input.is_key_pressed(KEY_SHIFT) or _bag_inventory == null or _inventory == null:
 		return
-	var data := _inventory.get_slot(index)
-	if data.is_empty():
-		return
-	var item_id := str(data.get("item_id", ""))
-	for _attempt in 80:
-		if _inventory.get_slot(index).is_empty():
-			break
-		var target_index := _find_bag_target(item_id)
-		if target_index < 0:
-			break
-		if not _inventory.move_stack_to(_bag_inventory, index, target_index):
-			break
-	_refresh()
+	if InventoryTransfer.shift_to_inventory(_inventory, _bag_inventory, index):
+		_refresh()
 	_slots[index].accept_event()
 
 
-func _find_bag_target(item_id: String) -> int:
-	if _bag_inventory == null:
-		return -1
-	var max_stack := ItemDB.get_max_stack(item_id)
-	for index in _bag_inventory.slot_count:
-		var slot := _bag_inventory.get_slot(index)
-		if slot.is_empty():
-			return index
-		if str(slot.get("item_id", "")) == item_id and int(slot.get("count", 0)) < max_stack:
-			return index
-	return -1
+func try_auto_store_from_inventory(source: Inventory, source_index: int) -> bool:
+	if source == null or _inventory == null:
+		return false
+	var slot := source.get_slot(source_index)
+	if slot.is_empty():
+		return false
+	var item_id := str(slot.get("item_id", ""))
+	var target_index := -1
+	if ItemDB.get_kind(item_id) == "ore":
+		target_index = WorldObjects.FURNACE_SLOT_INPUT
+	elif WorldObjects.FURNACE_FUEL_SECONDS.has(item_id):
+		target_index = WorldObjects.FURNACE_SLOT_FUEL
+	if target_index < 0:
+		_message_label.text = "熔炉只接受矿石或木头/木板/煤炭燃料。"
+		return false
+	if not InventoryTransfer.shift_to_slot(source, _inventory, source_index, target_index):
+		_message_label.text = "对应槽位已满或物品不匹配。"
+		return false
+	_message_label.text = ""
+	_refresh()
+	return true
 
 
 func handle_slot_drop(data: Dictionary, target_index: int) -> void:
