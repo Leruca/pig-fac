@@ -72,6 +72,8 @@ var chunk_manager: ChunkManager
 var pigs: Array[Pig] = []
 var active_pig: Pig
 
+var _placement_preview: PlacementPreview
+var _last_placement_hint := ""
 var _last_pig_cell := Vector2i(2147483647, 2147483647)
 var _map_zoom := 1.0
 var _right_dragging := false
@@ -145,6 +147,7 @@ func _ready() -> void:
 	hud.esc_menu.volume_toggle_requested.connect(_on_pause_volume_toggle_requested)
 	hud.esc_menu.fps_toggle_requested.connect(_on_pause_fps_toggle_requested)
 	hud.esc_menu.load_slot_requested.connect(_on_pause_load_slot_requested)
+	hud.esc_menu.save_slot_requested.connect(_on_pause_save_slot_requested)
 	hud.esc_menu.new_slot_requested.connect(_on_pause_new_slot_requested)
 	hud.esc_menu.new_game_requested.connect(_on_new_game_requested)
 	_save_manager = SaveManager.new()
@@ -180,6 +183,10 @@ func _ready() -> void:
 	interaction_range.clear_target()
 	camera.zoom = Vector2.ONE
 	hud.set_map_zoom(_map_zoom)
+	_placement_preview = PlacementPreview.new()
+	_placement_preview.game = self
+	_placement_preview.z_index = 6
+	add_child(_placement_preview)
 
 	for pig in pigs:
 		print(
@@ -225,6 +232,34 @@ func _process(delta: float) -> void:
 	_update_audio_environment()
 	_mark_visible_blocks()
 	_advance_behavior(delta)
+	_update_placement_hint()
+
+
+func _ui_blocks_placement_hint() -> bool:
+	return (
+		hud.is_esc_menu_open()
+		or hud.is_map_open()
+		or hud.is_chest_open()
+		or hud.is_nest_open()
+		or hud.is_furnace_open()
+		or hud.is_machine_open()
+		or hud.is_behavior_open()
+		or hud.is_crafting_open()
+	)
+
+
+func _update_placement_hint() -> void:
+	if _placement_preview == null:
+		return
+	var blocked_by_ui := _ui_blocks_placement_hint()
+	_placement_preview.visible = active_pig != null and not blocked_by_ui
+	var text := _placement_preview.hint_text() if _placement_preview.visible else ""
+	if text == _last_placement_hint:
+		return
+	_last_placement_hint = text
+	if text.is_empty():
+		return
+	hud.set_hint(text)
 
 
 func _update_audio_environment() -> void:
@@ -455,6 +490,18 @@ func _on_pause_load_slot_requested(slot_id: String) -> void:
 	get_tree().paused = false
 	hud.close_esc_menu()
 	hud.set_hint("已载入存档槽 %s：%s" % [slot_id, str(result.get("message", "读取成功。"))])
+
+
+func _on_pause_save_slot_requested(slot_id: String) -> void:
+	if not SavePaths.set_current_slot(slot_id):
+		hud.esc_menu.set_status("无法切换到存档槽。", true)
+		return
+	var result := _save_manager.save_game()
+	var ok := bool(result.get("ok", false))
+	hud.esc_menu.set_status(str(result.get("message", "")), not ok)
+	hud.esc_menu.set_has_save(_save_manager.has_save())
+	if ok:
+		hud.esc_menu._refresh_slots()
 
 
 func _on_pause_new_slot_requested(seed_text: String) -> void:

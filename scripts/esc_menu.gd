@@ -6,6 +6,7 @@ signal resume_requested
 signal save_requested
 signal load_requested
 signal load_slot_requested(slot_id: String)
+signal save_slot_requested(slot_id: String)
 signal new_slot_requested(seed_text: String)
 signal volume_toggle_requested
 signal fps_toggle_requested
@@ -127,7 +128,7 @@ func _build_layout() -> void:
 	add_child(center)
 
 	_panel = PanelContainer.new()
-	_panel.custom_minimum_size = Vector2(430.0, 0.0)
+	_panel.custom_minimum_size = Vector2(540.0, 0.0)
 	_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	_panel.add_theme_stylebox_override("panel", UIStyle.make_panel(UIStyle.PANEL, 18))
 	center.add_child(_panel)
@@ -202,6 +203,11 @@ func _build_layout() -> void:
 	load_slot_button.add_theme_font_size_override("font_size", 12)
 	load_slot_button.pressed.connect(_on_load_slot_pressed)
 	slot_row.add_child(load_slot_button)
+	var save_slot_button := _make_button("保存到此槽", 32.0)
+	save_slot_button.custom_minimum_size = Vector2(96.0, 32.0)
+	save_slot_button.add_theme_font_size_override("font_size", 12)
+	save_slot_button.pressed.connect(_on_save_slot_pressed)
+	slot_row.add_child(save_slot_button)
 	var new_slot_button := _make_button("新建槽位", 32.0)
 	new_slot_button.custom_minimum_size = Vector2(88.0, 32.0)
 	new_slot_button.add_theme_font_size_override("font_size", 12)
@@ -289,6 +295,14 @@ func _on_load_slot_pressed() -> void:
 		set_status("没有可载入的存档槽。", true)
 		return
 	load_slot_requested.emit(slot_id)
+
+
+func _on_save_slot_pressed() -> void:
+	var slot_id := _selected_slot_id()
+	if slot_id.is_empty():
+		set_status("没有可保存的存档槽。", true)
+		return
+	save_slot_requested.emit(slot_id)
 
 
 func _on_new_slot_pressed() -> void:

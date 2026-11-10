@@ -30,6 +30,7 @@ func _ready() -> void:
 	_test_bush_sticks()
 	_test_machine_ui()
 	_test_machine_behavior()
+	_test_placement_preview()
 	_test_pause_slots()
 
 	if _failures.is_empty():
@@ -520,6 +521,23 @@ func _test_machine_behavior() -> void:
 		not (_main.world_objects.get_machine(cell).get("pig", {}) as Dictionary).is_empty(),
 		"generator should hold the pig after machine behavior"
 	)
+
+
+func _test_placement_preview() -> void:
+	var pig: Pig = _main.pigs[0]
+	pig.inventory.add_item("furnace", 1)
+	var slot := -1
+	for index in pig.inventory.slot_count:
+		if str(pig.inventory.get_slot(index).get("item_id", "")) == "furnace":
+			slot = index
+			break
+	_check(slot >= 0, "furnace should enter bag for preview test")
+	if slot >= 0:
+		_main.active_pig = pig
+		pig.inventory.select_slot(slot)
+		var text: String = _main._placement_preview.hint_text()
+		_check(text.contains("2×2") and text.contains("左上角"), "furnace preview should explain 2x2 top-left")
+		pig.inventory.clear_selection()
 
 
 func _test_pause_slots() -> void:
