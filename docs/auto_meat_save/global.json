@@ -271,8 +271,55 @@
 		{
 			"behavior_area_index": 0,
 			"behavior_module_index": 0,
-			"behavior_program": [],
-			"behavior_running": false,
+			"behavior_program": [
+				{
+					"item_id": "hand",
+					"rect": {
+						"$rect2i": [
+							-10,
+							6,
+							5,
+							5
+						]
+					},
+					"type": "tool"
+				},
+				{
+					"item_id": "potato",
+					"rect": {
+						"$rect2i": [
+							-10,
+							6,
+							5,
+							5
+						]
+					},
+					"type": "tool"
+				},
+				{
+					"item_id": "super_watering_can",
+					"rect": {
+						"$rect2i": [
+							-10,
+							6,
+							5,
+							5
+						]
+					},
+					"type": "tool"
+				},
+				{
+					"container_cell": {
+						"$vec2i": [
+							-7,
+							0
+						]
+					},
+					"item_id": "potato",
+					"type": "store"
+				}
+			],
+			"behavior_running": true,
 			"cell": {
 				"$vec2i": [
 					8,
@@ -374,7 +421,7 @@
 		}
 	],
 	"seed": "-1973821245971387701",
-	"tick": 1349,
+	"tick": 1278,
 	"version": 2,
 	"visited_blocks": [
 		[

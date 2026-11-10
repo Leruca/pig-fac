@@ -45,134 +45,38 @@
 							"count": 64,
 							"item_id": "potato"
 						},
-						{
-							"count": 64,
-							"item_id": "potato"
-						},
-						{
-							"count": 64,
-							"item_id": "potato"
-						},
-						{
-							"count": 64,
-							"item_id": "potato"
-						},
-						{
-							"count": 64,
-							"item_id": "potato"
-						},
-						{
-							"count": 64,
-							"item_id": "potato"
-						},
-						{
-							"count": 64,
-							"item_id": "potato"
-						},
-						{
-							"count": 64,
-							"item_id": "potato"
-						},
-						{
-							"count": 64,
-							"item_id": "potato"
-						},
-						{
-							"count": 64,
-							"item_id": "potato"
-						},
-						{
-							"count": 64,
-							"item_id": "potato"
-						},
-						{
-							"count": 64,
-							"item_id": "potato"
-						},
-						{
-							"count": 64,
-							"item_id": "potato"
-						},
-						{
-							"count": 64,
-							"item_id": "potato"
-						},
-						{
-							"count": 64,
-							"item_id": "potato"
-						},
-						{
-							"count": 64,
-							"item_id": "potato"
-						},
-						{
-							"count": 64,
-							"item_id": "potato"
-						},
-						{
-							"count": 64,
-							"item_id": "potato"
-						},
-						{
-							"count": 64,
-							"item_id": "potato"
-						},
-						{
-							"count": 64,
-							"item_id": "potato"
-						},
-						{
-							"count": 64,
-							"item_id": "potato"
-						},
-						{
-							"count": 64,
-							"item_id": "potato"
-						},
-						{
-							"count": 64,
-							"item_id": "potato"
-						},
-						{
-							"count": 64,
-							"item_id": "potato"
-						},
-						{
-							"count": 64,
-							"item_id": "potato"
-						},
-						{
-							"count": 64,
-							"item_id": "potato"
-						},
-						{
-							"count": 64,
-							"item_id": "potato"
-						},
-						{
-							"count": 64,
-							"item_id": "potato"
-						},
-						{
-							"count": 64,
-							"item_id": "potato"
-						},
-						{
-							"count": 64,
-							"item_id": "potato"
-						},
-						{
-							"count": 64,
-							"item_id": "potato"
-						},
-						{
-							"count": 64,
-							"item_id": "potato"
-						},
-						{
-							"count": 64,
-							"item_id": "potato"
-						}
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{},
+						{}
 					]
 				}
 			},
@@ -229,7 +133,233 @@
 			}
 		],
 		"chopped_trees": [],
-		"farm": [],
+		"farm": [
+			{
+				"cell": [
+					-10,
+					6
+				],
+				"crop_id": "potato",
+				"elapsed": 0.0,
+				"stage": 3
+			},
+			{
+				"cell": [
+					-9,
+					6
+				],
+				"crop_id": "potato",
+				"elapsed": 0.0,
+				"stage": 3
+			},
+			{
+				"cell": [
+					-8,
+					6
+				],
+				"crop_id": "potato",
+				"elapsed": 0.0,
+				"stage": 3
+			},
+			{
+				"cell": [
+					-7,
+					6
+				],
+				"crop_id": "potato",
+				"elapsed": 0.0,
+				"stage": 3
+			},
+			{
+				"cell": [
+					-6,
+					6
+				],
+				"crop_id": "potato",
+				"elapsed": 0.0,
+				"stage": 3
+			},
+			{
+				"cell": [
+					-10,
+					7
+				],
+				"crop_id": "potato",
+				"elapsed": 0.0,
+				"stage": 3
+			},
+			{
+				"cell": [
+					-9,
+					7
+				],
+				"crop_id": "potato",
+				"elapsed": 0.0,
+				"stage": 3
+			},
+			{
+				"cell": [
+					-8,
+					7
+				],
+				"crop_id": "potato",
+				"elapsed": 0.0,
+				"stage": 3
+			},
+			{
+				"cell": [
+					-7,
+					7
+				],
+				"crop_id": "potato",
+				"elapsed": 0.0,
+				"stage": 3
+			},
+			{
+				"cell": [
+					-6,
+					7
+				],
+				"crop_id": "potato",
+				"elapsed": 0.0,
+				"stage": 3
+			},
+			{
+				"cell": [
+					-10,
+					8
+				],
+				"crop_id": "potato",
+				"elapsed": 0.0,
+				"stage": 3
+			},
+			{
+				"cell": [
+					-9,
+					8
+				],
+				"crop_id": "potato",
+				"elapsed": 0.0,
+				"stage": 3
+			},
+			{
+				"cell": [
+					-8,
+					8
+				],
+				"crop_id": "potato",
+				"elapsed": 0.0,
+				"stage": 3
+			},
+			{
+				"cell": [
+					-7,
+					8
+				],
+				"crop_id": "potato",
+				"elapsed": 0.0,
+				"stage": 3
+			},
+			{
+				"cell": [
+					-6,
+					8
+				],
+				"crop_id": "potato",
+				"elapsed": 0.0,
+				"stage": 3
+			},
+			{
+				"cell": [
+					-10,
+					9
+				],
+				"crop_id": "potato",
+				"elapsed": 0.0,
+				"stage": 3
+			},
+			{
+				"cell": [
+					-9,
+					9
+				],
+				"crop_id": "potato",
+				"elapsed": 0.0,
+				"stage": 3
+			},
+			{
+				"cell": [
+					-8,
+					9
+				],
+				"crop_id": "potato",
+				"elapsed": 0.0,
+				"stage": 3
+			},
+			{
+				"cell": [
+					-7,
+					9
+				],
+				"crop_id": "potato",
+				"elapsed": 0.0,
+				"stage": 3
+			},
+			{
+				"cell": [
+					-6,
+					9
+				],
+				"crop_id": "potato",
+				"elapsed": 0.0,
+				"stage": 3
+			},
+			{
+				"cell": [
+					-10,
+					10
+				],
+				"crop_id": "potato",
+				"elapsed": 0.0,
+				"stage": 3
+			},
+			{
+				"cell": [
+					-9,
+					10
+				],
+				"crop_id": "potato",
+				"elapsed": 0.0,
+				"stage": 3
+			},
+			{
+				"cell": [
+					-8,
+					10
+				],
+				"crop_id": "potato",
+				"elapsed": 0.0,
+				"stage": 3
+			},
+			{
+				"cell": [
+					-7,
+					10
+				],
+				"crop_id": "potato",
+				"elapsed": 0.0,
+				"stage": 3
+			},
+			{
+				"cell": [
+					-6,
+					10
+				],
+				"crop_id": "potato",
+				"elapsed": 0.0,
+				"stage": 3
+			}
+		],
 		"fences": [],
 		"furnaces": [],
 		"logs": [],
@@ -243,7 +373,7 @@
 				"pig": {
 					"count": 1,
 					"item_id": "pig",
-					"pig_inventory": "<RefCounted#-9223371902939034220>",
+					"pig_inventory": "<RefCounted#-9223371902267945570>",
 					"pig_name": "发电机猪",
 					"pig_rgb": {
 						"$vec3i": [
@@ -276,7 +406,7 @@
 				"pig": {
 					"count": 1,
 					"item_id": "pig",
-					"pig_inventory": "<RefCounted#-9223371902922257003>",
+					"pig_inventory": "<RefCounted#-9223371902251168353>",
 					"pig_name": "肉肉仓猪",
 					"pig_rgb": {
 						"$vec3i": [

@@ -84,11 +84,13 @@ func _build_line() -> void:
 	var nest_root := _free_area(base + Vector2i(-5, 0), 3)
 	var food_chest := _free_area(base + Vector2i(-9, 0), 1)
 	var meat_chest := _free_area(base + Vector2i(14, 2), 1)
+	var farm_root := _free_area(base + Vector2i(-12, 6), 5)
 	if (
 		pair_root == WorldObjects.INVALID_CELL
 		or nest_root == WorldObjects.INVALID_CELL
 		or food_chest == WorldObjects.INVALID_CELL
 		or meat_chest == WorldObjects.INVALID_CELL
+		or farm_root == WorldObjects.INVALID_CELL
 	):
 		push_error("not enough free space for demo line")
 		return
@@ -112,9 +114,33 @@ func _build_line() -> void:
 	nest_inventory.changed.emit()
 
 	var food_inventory: Inventory = world.get_chest(food_chest)
-	for index in food_inventory.slot_count:
+	for index in mini(8, food_inventory.slot_count):
 		food_inventory.slots[index] = {"item_id": "potato", "count": 64}
 	food_inventory.changed.emit()
+
+	# 5×5 自动农田：初始成熟土豆，第三只猪负责收割、补种、浇水和存食物。
+	var farm_rect := Rect2i(farm_root, Vector2i(5, 5))
+	for y in 5:
+		for x in 5:
+			var farm_cell := farm_root + Vector2i(x, y)
+			if _main.farm.till(farm_cell):
+				_main.farm.plant(farm_cell, "potato")
+				var plot: Dictionary = _main.farm.plots[farm_cell]
+				plot["stage"] = ItemDB.get_mature_stage("potato")
+				plot["elapsed"] = 0.0
+				world.mark_dirty(farm_cell)
+	_main.farm._refresh()
+
+	if _main.pigs.size() >= 3:
+		var farm_worker: Pig = _main.pigs[2]
+		farm_worker.behavior_program = [
+			{"type": "tool", "item_id": "hand", "rect": farm_rect},
+			{"type": "tool", "item_id": "potato", "rect": farm_rect},
+			{"type": "tool", "item_id": "super_watering_can", "rect": farm_rect},
+			{"type": "store", "container_cell": food_chest, "item_id": "potato"},
+		]
+		farm_worker.behavior_module_index = 0
+		farm_worker.behavior_running = true
 
 	if _main.pigs.size() >= 2:
 		var meat_worker: Pig = _main.pigs[0]
