@@ -143,7 +143,7 @@ static func build_overrides(
 		if not _in_chunk(cell, origin, chunk_size):
 			continue
 		var machine: Dictionary = world.machines[cell]
-		overrides["machines"].append({
+		var machine_entry := {
 			"cell": _encode_cell(cell),
 			"type": str(machine.get("type", "")),
 			"size": int(machine.get("size", 1)),
@@ -152,7 +152,10 @@ static func build_overrides(
 			"progress": float(machine.get("progress", 0.0)),
 			"output": SaveCodec.encode(machine.get("output", {})),
 			"power_accum": float(machine.get("power_accum", 0.0)),
-		})
+		}
+		if machine.has("inventory"):
+			machine_entry["inventory"] = SaveCodec.encode_inventory(machine.get("inventory"))
+		overrides["machines"].append(machine_entry)
 	for cell_value in world.chests.keys():
 		var cell: Vector2i = cell_value
 		if _in_chunk(cell, origin, chunk_size):

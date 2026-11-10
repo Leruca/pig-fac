@@ -7,6 +7,8 @@ signal save_requested
 signal load_requested
 signal load_slot_requested(slot_id: String)
 signal save_slot_requested(slot_id: String)
+signal rename_slot_requested(old_id: String, new_id: String)
+signal delete_slot_requested(slot_id: String)
 signal new_slot_requested(seed_text: String)
 signal volume_toggle_requested
 signal fps_toggle_requested
@@ -22,6 +24,8 @@ var _fps_button: Button
 var _load_button: Button
 var _slot_option: OptionButton
 var _slot_ids: Array[String] = []
+var _slot_thumb: TextureRect
+var _slot_name_input: LineEdit
 var _panel: PanelContainer
 var _seed_text := ""
 var _new_game_armed := false
@@ -213,6 +217,45 @@ func _build_layout() -> void:
 	new_slot_button.add_theme_font_size_override("font_size", 12)
 	new_slot_button.pressed.connect(_on_new_slot_pressed)
 	slot_row.add_child(new_slot_button)
+	_slot_option.item_selected.connect(_on_slot_option_selected)
+
+	var slot_detail := HBoxContainer.new()
+	slot_detail.add_theme_constant_override("separation", 10)
+	content.add_child(slot_detail)
+	_slot_thumb = TextureRect.new()
+	_slot_thumb.custom_minimum_size = Vector2(160.0, 100.0)
+	_slot_thumb.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_slot_thumb.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_slot_thumb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	slot_detail.add_child(_slot_thumb)
+	var slot_actions := VBoxContainer.new()
+	slot_actions.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	slot_actions.add_theme_constant_override("separation", 5)
+	slot_detail.add_child(slot_actions)
+	_slot_name_input = LineEdit.new()
+	_slot_name_input.placeholder_text = "新槽名（重命名）"
+	_slot_name_input.custom_minimum_size = Vector2(0.0, 32.0)
+	_slot_name_input.add_theme_font_override("font", UIStyle.regular_font())
+	_slot_name_input.add_theme_font_size_override("font_size", 12)
+	_slot_name_input.add_theme_color_override("font_color", UIStyle.TEXT)
+	_slot_name_input.add_theme_color_override("font_placeholder_color", UIStyle.TEXT_MUTED)
+	_slot_name_input.add_theme_stylebox_override(
+		"normal", UIStyle.make_panel(Color(0.09, 0.13, 0.08, 0.98), 8, UIStyle.SLOT_BORDER, 1, false)
+	)
+	slot_actions.add_child(_slot_name_input)
+	var action_row := HBoxContainer.new()
+	action_row.add_theme_constant_override("separation", 6)
+	slot_actions.add_child(action_row)
+	var rename_button := _make_button("重命名", 30.0)
+	rename_button.custom_minimum_size = Vector2(92.0, 30.0)
+	rename_button.add_theme_font_size_override("font_size", 12)
+	rename_button.pressed.connect(_on_rename_slot_pressed)
+	action_row.add_child(rename_button)
+	var delete_button := _make_button("删除槽位", 30.0)
+	delete_button.custom_minimum_size = Vector2(92.0, 30.0)
+	delete_button.add_theme_font_size_override("font_size", 12)
+	delete_button.pressed.connect(_on_delete_slot_pressed)
+	action_row.add_child(delete_button)
 
 	var separator := ColorRect.new()
 	separator.color = Color(0.72, 0.80, 0.59, 0.14)
@@ -280,6 +323,9 @@ func _refresh_slots() -> void:
 	else:
 		_slot_option.disabled = false
 		_slot_option.select(selected)
+	_refresh_thumbnail()
+	if _slot_name_input != null and not _slot_ids.is_empty():
+		_slot_name_input.text = _selected_slot_id()
 
 
 func _selected_slot_id() -> String:
@@ -307,6 +353,47 @@ func _on_save_slot_pressed() -> void:
 
 func _on_new_slot_pressed() -> void:
 	new_slot_requested.emit(_seed_input.text.strip_edges() if _seed_input != null else "")
+
+
+func _on_slot_option_selected(_index: int) -> void:
+	_refresh_thumbnail()
+	if _slot_name_input != null:
+		_slot_name_input.text = _selected_slot_id()
+
+
+func _refresh_thumbnail() -> void:
+	if _slot_thumb == null:
+		return
+	var slot_id := _selected_slot_id()
+	if slot_id.is_empty():
+		_slot_thumb.texture = null
+		return
+	var path := SavePaths.slot_path(slot_id) + "/thumbnail.png"
+	if not FileAccess.file_exists(path):
+		_slot_thumb.texture = null
+		return
+	var image := Image.new()
+	if image.load(path) != OK or image.is_empty():
+		_slot_thumb.texture = null
+		return
+	_slot_thumb.texture = ImageTexture.create_from_image(image)
+
+
+func _on_rename_slot_pressed() -> void:
+	var old_id := _selected_slot_id()
+	var new_id := _slot_name_input.text.strip_edges() if _slot_name_input != null else ""
+	if old_id.is_empty() or new_id.is_empty():
+		set_status("请选择槽位并输入新槽名。", true)
+		return
+	rename_slot_requested.emit(old_id, new_id)
+
+
+func _on_delete_slot_pressed() -> void:
+	var slot_id := _selected_slot_id()
+	if slot_id.is_empty():
+		set_status("请选择要删除的槽位。", true)
+		return
+	delete_slot_requested.emit(slot_id)
 
 
 func _reset_new_game_button() -> void:

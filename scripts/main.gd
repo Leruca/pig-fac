@@ -74,6 +74,7 @@ var active_pig: Pig
 
 var _placement_preview: PlacementPreview
 var _last_placement_hint := ""
+var _last_machine_hover := ""
 var _last_pig_cell := Vector2i(2147483647, 2147483647)
 var _map_zoom := 1.0
 var _right_dragging := false
@@ -148,6 +149,8 @@ func _ready() -> void:
 	hud.esc_menu.fps_toggle_requested.connect(_on_pause_fps_toggle_requested)
 	hud.esc_menu.load_slot_requested.connect(_on_pause_load_slot_requested)
 	hud.esc_menu.save_slot_requested.connect(_on_pause_save_slot_requested)
+	hud.esc_menu.rename_slot_requested.connect(_on_pause_rename_slot_requested)
+	hud.esc_menu.delete_slot_requested.connect(_on_pause_delete_slot_requested)
 	hud.esc_menu.new_slot_requested.connect(_on_pause_new_slot_requested)
 	hud.esc_menu.new_game_requested.connect(_on_new_game_requested)
 	_save_manager = SaveManager.new()
@@ -233,6 +236,27 @@ func _process(delta: float) -> void:
 	_mark_visible_blocks()
 	_advance_behavior(delta)
 	_update_placement_hint()
+	_update_machine_hover_hint()
+
+
+func _update_machine_hover_hint() -> void:
+	if _placement_preview != null and not _placement_preview.hint_text().is_empty():
+		_last_machine_hover = ""
+		return
+	if _ui_blocks_placement_hint():
+		_last_machine_hover = ""
+		return
+	var cell := grid.world_to_cell(get_global_mouse_position())
+	var text := world_objects.machine_status_text(cell)
+	if text == _last_machine_hover:
+		return
+	var had_hover := not _last_machine_hover.is_empty()
+	_last_machine_hover = text
+	if text.is_empty():
+		if had_hover:
+			hud.set_hint(_base_hint())
+		return
+	hud.set_hint(text)
 
 
 func _ui_blocks_placement_hint() -> bool:
@@ -502,6 +526,22 @@ func _on_pause_save_slot_requested(slot_id: String) -> void:
 	hud.esc_menu.set_has_save(_save_manager.has_save())
 	if ok:
 		hud.esc_menu._refresh_slots()
+
+
+func _on_pause_rename_slot_requested(old_id: String, new_id: String) -> void:
+	if not SavePaths.rename_slot(old_id, new_id):
+		hud.esc_menu.set_status("重命名失败：槽名已存在或不可用。", true)
+		return
+	hud.esc_menu.set_status("存档槽已重命名：%s → %s" % [old_id, new_id])
+	hud.esc_menu._refresh_slots()
+
+
+func _on_pause_delete_slot_requested(slot_id: String) -> void:
+	if not SavePaths.delete_slot(slot_id):
+		hud.esc_menu.set_status("删除失败：main 槽或不存在。", true)
+		return
+	hud.esc_menu.set_status("已删除存档槽：%s" % slot_id)
+	hud.esc_menu._refresh_slots()
 
 
 func _on_pause_new_slot_requested(seed_text: String) -> void:
@@ -2660,6 +2700,15 @@ func _behavior_operate_machine(pig: Pig, root: Vector2i) -> bool:
 	var output: Dictionary = machine.get("output", {})
 	if not output.is_empty():
 		return world_objects.collect_machine_output(root, pig.inventory)
+	if WorldObjects.PROCESSOR_TYPES.has(machine_type):
+		var machine_inventory := world_objects.get_machine_inventory(root)
+		if (
+			machine_inventory != null
+			and not machine_inventory.get_slot(WorldObjects.MACHINE_SLOT_OUTPUT).is_empty()
+		):
+			return world_objects.collect_machine_output(root, pig.inventory)
+		var crafted := world_objects.process_machine(root, pig.inventory)
+		return bool(crafted.get("ok", false))
 	if machine_type == "pig_generator" or machine_type == "meat_storage":
 		if (machine.get("pig", {}) as Dictionary).is_empty():
 			if _find_inventory_slot(pig.inventory, "pig") >= 0:

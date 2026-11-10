@@ -495,9 +495,35 @@ func _test_machine_ui() -> void:
 			break
 		cell += Vector2i(1, 0)
 	_check(placed, "roller should be placeable for UI test")
+	var pig: Pig = _main.pigs[0]
+	_main.active_pig = pig
+	_main.hud.bind_pig(pig.display_name, pig.inventory, pig)
+	pig.inventory.add_item("iron_ingot", 1)
+	var ingot_slot := -1
+	for index in pig.inventory.slot_count:
+		if str(pig.inventory.get_slot(index).get("item_id", "")) == "iron_ingot":
+			ingot_slot = index
+			break
 	_main._open_machine(cell)
 	_check(_main.hud.is_machine_open(), "machine UI should open")
 	_check(_main.hud._machine_ui._recipe_buttons.size() == 3, "roller UI should list three recipes")
+	_check(_main.hud._machine_ui._slots.size() == 4, "roller UI should expose three inputs and one output")
+	if ingot_slot >= 0:
+		_check(
+			_main.hud._machine_ui.try_shift_from_inventory(pig.inventory, ingot_slot),
+			"Shift should move ingot into machine input"
+		)
+		_check(
+			_main.world_objects.get_machine_inventory(cell).get_total_count("iron_ingot") == 1,
+			"machine input should hold the shifted ingot"
+		)
+		var crafted: Dictionary = _main.world_objects.craft_machine(cell)
+		_check(bool(crafted.get("ok", false)), "machine should craft from its input slot")
+		_check(
+			_main.world_objects.collect_machine_output(cell, pig.inventory),
+			"machine output should be shiftable back to bag"
+		)
+		_check(pig.inventory.get_total_count("iron_plate") == 1, "crafted plate should enter bag")
 	_main.hud.close_machine()
 	_check(not _main.hud.is_machine_open(), "machine UI should close")
 
@@ -553,6 +579,13 @@ func _test_behavior_templates() -> void:
 	_main.hud.behavior_ui._paste_program()
 	_check(pig_b.behavior_program.size() == 1, "paste should copy behavior modules to another pig")
 	_check(str(pig_b.behavior_program[0].get("type", "")) == "move", "pasted module type should match")
+	_check(
+		BehaviorTemplateStore.save_template("runtime_qa", pig_b.behavior_program),
+		"behavior template should save to disk"
+	)
+	var loaded := BehaviorTemplateStore.load_template("runtime_qa")
+	_check(loaded.size() == 1 and str(loaded[0].get("type", "")) == "move", "behavior template should load from disk")
+	BehaviorTemplateStore.delete_template("runtime_qa")
 	_main.hud.close_behavior()
 	pig_b.behavior_program.clear()
 

@@ -97,6 +97,11 @@ func _build_layout() -> void:
 		12,
 		UIStyle.TEXT_MUTED
 	))
+	content.add_child(_make_label(
+		"状态点：绿=产物就绪  黄=燃烧中  灰=空闲",
+		10,
+		UIStyle.TEXT_MUTED
+	))
 	var separator := ColorRect.new()
 	separator.color = Color(0.72, 0.80, 0.59, 0.14)
 	separator.custom_minimum_size = Vector2(0.0, 1.0)

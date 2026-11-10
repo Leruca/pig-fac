@@ -563,6 +563,12 @@ func apply_overrides(chunk: Vector2i, payload: Dictionary) -> void:
 			"output": SaveCodec.decode(entry.get("output", {})),
 			"power_accum": float(entry.get("power_accum", 0.0)),
 		}
+		if entry.has("inventory") or WorldObjects.PROCESSOR_TYPES.has(machine_type):
+			var machine_inventory := SaveCodec.decode_inventory(
+				entry.get("inventory", {}), WorldObjects.MACHINE_SLOT_COUNT
+			)
+			world.machines[cell]["inventory"] = machine_inventory
+			world._bind_container_dirty(cell, machine_inventory)
 		world._register_machine_cells(cell, machine_size)
 		needs_reindex = true
 	for entry in overrides.get("chests", []):

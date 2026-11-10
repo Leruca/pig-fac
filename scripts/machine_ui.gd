@@ -9,6 +9,10 @@ var _world: WorldObjects
 var _machine: Dictionary
 var _cell: Vector2i
 var _bag: Inventory
+var _machine_inventory: Inventory
+var _slots: Array[InventorySlot] = []
+var _slot_icons: Array[TextureRect] = []
+var _slot_counts: Array[Label] = []
 var _title_label: Label
 var _description_label: Label
 var _body: VBoxContainer
@@ -51,6 +55,9 @@ func setup(
 	_bag = bag
 	if _bag != null:
 		_bag.changed.connect(_refresh)
+	_machine_inventory = machine.get("inventory") as Inventory
+	if _machine_inventory != null and not _machine_inventory.changed.is_connected(_refresh):
+		_machine_inventory.changed.connect(_refresh)
 	_title_label.text = "%s · %s" % [
 		WorldObjects.MACHINE_TYPES.get(str(machine.get("type", "")), "机器"),
 		owner_name,
@@ -72,9 +79,20 @@ func try_shift_from_inventory(source: Inventory, source_index: int) -> bool:
 	if _world == null or _machine.is_empty() or source != _bag:
 		return false
 	var source_slot := source.get_slot(source_index)
-	if source_slot.is_empty() or str(source_slot.get("item_id", "")) != "pig":
+	if source_slot.is_empty():
 		return false
 	var machine_type := str(_machine.get("type", ""))
+	if WorldObjects.PROCESSOR_TYPES.has(machine_type) and _machine_inventory != null:
+		for index in WorldObjects.MACHINE_SLOT_OUTPUT:
+			if _machine_inventory.get_slot(index).is_empty():
+				if InventoryTransfer.shift_to_slot(source, _machine_inventory, source_index, index):
+					_message_label.text = ""
+					_refresh()
+					return true
+		_message_label.text = "机器输入槽已满。"
+		return false
+	if str(source_slot.get("item_id", "")) != "pig":
+		return false
 	if machine_type != "pig_generator" and machine_type != "meat_storage":
 		return false
 	if _world.insert_pig_into_machine(_cell, _bag):
@@ -92,10 +110,16 @@ func is_open() -> bool:
 func _unbind() -> void:
 	if _bag != null and _bag.changed.is_connected(_refresh):
 		_bag.changed.disconnect(_refresh)
+	if _machine_inventory != null and _machine_inventory.changed.is_connected(_refresh):
+		_machine_inventory.changed.disconnect(_refresh)
 	_bag = null
+	_machine_inventory = null
 	_world = null
 	_machine = {}
 	_cell = Vector2i.ZERO
+	_slots.clear()
+	_slot_icons.clear()
+	_slot_counts.clear()
 	_recipe_buttons.clear()
 	_recipe_rows.clear()
 
@@ -129,6 +153,11 @@ func _build_base() -> void:
 
 	_description_label = _make_label("", 12, UIStyle.TEXT_MUTED)
 	content.add_child(_description_label)
+	content.add_child(_make_label(
+		"状态点：绿=产物/有猪  黄=加工中/可加工  红=缺猪/缺电  灰=空闲",
+		10,
+		UIStyle.TEXT_MUTED
+	))
 	var separator := ColorRect.new()
 	separator.color = Color(0.72, 0.80, 0.59, 0.14)
 	separator.custom_minimum_size = Vector2(0.0, 1.0)
@@ -148,6 +177,9 @@ func _rebuild_body() -> void:
 		child.queue_free()
 	_recipe_buttons.clear()
 	_recipe_rows.clear()
+	_slots.clear()
+	_slot_icons.clear()
+	_slot_counts.clear()
 	_power_bar = null
 	_progress_bar = null
 	_pig_icon = null
@@ -162,6 +194,7 @@ func _rebuild_body() -> void:
 
 
 func _build_recipe_list(machine_type: String) -> void:
+	_build_slot_cards()
 	var recipes: Array = WorldObjects.PROCESSING_RECIPES.get(machine_type, [])
 	for recipe_value in recipes:
 		var recipe: Dictionary = recipe_value
@@ -199,6 +232,121 @@ func _build_recipe_list(machine_type: String) -> void:
 		row.add_child(button)
 		_recipe_buttons.append(button)
 		_recipe_rows.append({"recipe": recipe, "button": button, "ingredients": ingredient_label})
+
+
+func _build_slot_cards() -> void:
+	var cards := HBoxContainer.new()
+	cards.add_theme_constant_override("separation", 6)
+	_body.add_child(cards)
+	for index in WorldObjects.MACHINE_SLOT_COUNT:
+		cards.add_child(_build_slot_card(index))
+
+
+func _build_slot_card(index: int) -> Control:
+	var card := VBoxContainer.new()
+	card.custom_minimum_size = Vector2(78.0, 0.0)
+	card.add_theme_constant_override("separation", 3)
+	card.add_child(_make_label(
+		"输出" if index == WorldObjects.MACHINE_SLOT_OUTPUT else "输入 %d" % (index + 1),
+		10,
+		UIStyle.TEXT_MUTED,
+		true
+	))
+	var slot := InventorySlot.new()
+	slot.custom_minimum_size = Vector2(68.0, 68.0)
+	slot.mouse_filter = Control.MOUSE_FILTER_STOP
+	slot.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	slot.owner_ui = self
+	slot.slot_index = index
+	slot.gui_input.connect(_on_slot_gui_input.bind(index))
+	slot.add_theme_stylebox_override(
+		"panel",
+		UIStyle.make_panel(
+			Color(0.10, 0.14, 0.09, 0.95),
+			9,
+			UIStyle.ACCENT if index == WorldObjects.MACHINE_SLOT_OUTPUT else UIStyle.SLOT_BORDER,
+			1,
+			false
+		)
+	)
+	card.add_child(slot)
+	var icon := TextureRect.new()
+	icon.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	icon.offset_left = 7.0
+	icon.offset_top = 7.0
+	icon.offset_right = -7.0
+	icon.offset_bottom = -7.0
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	slot.add_child(icon)
+	var count := _make_label("", 11, UIStyle.TEXT, true)
+	count.anchor_left = 1.0
+	count.anchor_top = 1.0
+	count.anchor_right = 1.0
+	count.anchor_bottom = 1.0
+	count.offset_left = -30.0
+	count.offset_top = -19.0
+	count.offset_right = -3.0
+	count.offset_bottom = -2.0
+	count.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	count.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	count.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	slot.add_child(count)
+	_slots.append(slot)
+	_slot_icons.append(icon)
+	_slot_counts.append(count)
+	return card
+
+
+func _refresh_slots() -> void:
+	if _machine_inventory == null:
+		return
+	for index in _slots.size():
+		var data := _machine_inventory.get_slot(index)
+		var icon := _slot_icons[index]
+		var count_label := _slot_counts[index]
+		if data.is_empty():
+			icon.texture = null
+			count_label.text = ""
+			_slots[index].tooltip_text = "空槽"
+		else:
+			var item_id := str(data.get("item_id", ""))
+			var count := int(data.get("count", 0))
+			icon.texture = ItemDB.get_icon(item_id)
+			count_label.text = str(count) if count > 1 else ""
+			_slots[index].tooltip_text = "%s ×%d" % [ItemDB.get_display_name(item_id), count]
+
+
+func _on_slot_gui_input(event: InputEvent, index: int) -> void:
+	if not (event is InputEventMouseButton):
+		return
+	var button := event as InputEventMouseButton
+	if not button.pressed or button.button_index != MOUSE_BUTTON_LEFT:
+		return
+	if not Input.is_key_pressed(KEY_SHIFT) or _bag == null or _machine_inventory == null:
+		return
+	if InventoryTransfer.shift_to_inventory(_machine_inventory, _bag, index):
+		_refresh()
+	_slots[index].accept_event()
+
+
+func handle_slot_drop(data: Dictionary, target_index: int) -> void:
+	if _machine_inventory == null:
+		return
+	if target_index == WorldObjects.MACHINE_SLOT_OUTPUT:
+		_message_label.text = "输出槽只能取出，不能放入。"
+		return
+	var source_value: Variant = data.get("source_inventory")
+	if not (source_value is Inventory):
+		return
+	var source: Inventory = source_value
+	var source_index := int(data.get("source_index", -1))
+	if source.get_slot(source_index).is_empty():
+		return
+	if source.move_stack_to(_machine_inventory, source_index, target_index):
+		_message_label.text = ""
+		_refresh()
 
 
 func _build_generator_card() -> void:
@@ -303,6 +451,7 @@ func _build_state_card(
 func _refresh() -> void:
 	if _bag == null or _world == null:
 		return
+	_refresh_slots()
 	_refresh_dynamic()
 
 
@@ -315,11 +464,7 @@ func _refresh_dynamic() -> void:
 		for row in _recipe_rows:
 			var recipe: Dictionary = row["recipe"]
 			var button: Button = row["button"]
-			var available := (
-				_bag != null
-				and Crafting.can_craft(_bag, recipe)
-				and _bag.can_add_item(str(recipe.get("output", "")), int(recipe.get("output_amount", 1)))
-			)
+			var available := _world.can_machine_craft(_cell, recipe)
 			button.disabled = not available
 			can_any = can_any or available
 			var label: Label = row["ingredients"]
@@ -328,9 +473,9 @@ func _refresh_dynamic() -> void:
 				UIStyle.TEXT_MUTED if available else Color(0.75, 0.50, 0.43, 0.9)
 			)
 		_status_label.text = (
-			"材料已放入背包；点击“加工”手摇一次。"
+			"输入槽材料已就绪；点击“加工”手摇一次，产物进入输出槽。"
 			if can_any
-			else "把对应的锭/板/线/零件放进背包后再加工。"
+			else "把材料 Shift/拖进输入槽；输出槽只能取出。"
 		)
 	elif machine_type == "pig_generator":
 		var power := float(_machine.get("power", 0.0))
@@ -385,21 +530,18 @@ func _refresh_dynamic() -> void:
 
 
 func _on_recipe_pressed(recipe: Dictionary) -> void:
-	if _bag == null:
+	if _world == null:
 		return
-	var output_id := str(recipe.get("output", ""))
-	var output_amount := int(recipe.get("output_amount", 1))
-	if not _bag.can_add_item(output_id, output_amount):
-		_message_label.text = "背包空间不足，产物需要 %d 格。" % output_amount
-		return
-	if Crafting.craft(_bag, recipe):
+	var result := _world.craft_machine_recipe(_cell, recipe)
+	if bool(result.get("ok", false)):
 		_message_label.text = ""
-		_status_label.text = "加工完成：%s ×%d" % [
-			ItemDB.get_display_name(output_id),
-			output_amount,
+		_status_label.text = "加工完成：%s ×%d（在输出槽）" % [
+			ItemDB.get_display_name(str(result.get("output", ""))),
+			int(result.get("output_amount", 1)),
 		]
+		_refresh()
 	else:
-		_message_label.text = "材料不足，无法加工。"
+		_message_label.text = str(result.get("reason", "材料不足，无法加工。"))
 
 
 func _on_insert_pig() -> void:
@@ -429,11 +571,11 @@ func _on_collect_output() -> void:
 func _description_for(machine_type: String) -> String:
 	match machine_type:
 		"roller":
-			return "手摇机器：铁锭/铜锭/金锭 → 对应金属板。"
+			return "手摇机器：输入槽放金属锭，输出槽取金属板。"
 		"press":
-			return "手摇机器：铁板/铜板/金板 → 对应金属线。"
+			return "手摇机器：输入槽放金属板，输出槽取金属线。"
 		"assembler":
-			return "手摇装配：用金属板和线装配猪力发电机、肉肉仓。"
+			return "手摇装配：输入槽放板/线/零件，输出槽取最终设备。"
 		"pig_generator":
 			return "猪进去滚动发电；3 格内的肉肉仓可以使用这些电力。"
 		"meat_storage":

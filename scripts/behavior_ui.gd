@@ -38,6 +38,8 @@ var _picker_grid: GridContainer
 var _picker_mode := ""
 var _picker_module := -1
 var _clipboard_program: Array[Dictionary] = []
+var _template_option: OptionButton
+var _template_name: LineEdit
 
 
 func _ready() -> void:
@@ -46,12 +48,14 @@ func _ready() -> void:
 	custom_minimum_size = Vector2(500.0, 0.0)
 	add_theme_stylebox_override("panel", UIStyle.make_panel(UIStyle.PANEL, 18))
 	_build_layout()
+	_refresh_templates()
 
 
 func setup(pig: Pig) -> void:
 	_pig = pig
 	_title_label.text = "行为设计 · %s" % (pig.display_name if pig != null else "")
 	_hide_picker()
+	_refresh_templates()
 	_refresh()
 
 
@@ -175,6 +179,30 @@ func _build_layout() -> void:
 	palette.add_child(_make_add_button("把物品存入容器", "store"))
 	palette.add_child(_make_add_button("从容器拿取物品", "take"))
 	palette.add_child(_make_add_button("操作机器", "machine"))
+
+	var template_row := HBoxContainer.new()
+	template_row.add_theme_constant_override("separation", 5)
+	content.add_child(template_row)
+	_template_name = LineEdit.new()
+	_template_name.placeholder_text = "模板名"
+	_template_name.custom_minimum_size = Vector2(110.0, 28.0)
+	_template_name.add_theme_font_override("font", UIStyle.regular_font())
+	_template_name.add_theme_font_size_override("font_size", 11)
+	template_row.add_child(_template_name)
+	var save_template := _make_button("存模板", 58.0)
+	save_template.custom_minimum_size = Vector2(58.0, 28.0)
+	save_template.pressed.connect(_save_template)
+	template_row.add_child(save_template)
+	_template_option = OptionButton.new()
+	_template_option.custom_minimum_size = Vector2(120.0, 28.0)
+	_template_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_template_option.add_theme_font_override("font", UIStyle.regular_font())
+	_template_option.add_theme_font_size_override("font_size", 11)
+	template_row.add_child(_template_option)
+	var load_template := _make_button("载模板", 58.0)
+	load_template.custom_minimum_size = Vector2(58.0, 28.0)
+	load_template.pressed.connect(_load_template)
+	template_row.add_child(load_template)
 
 	_scroll = ScrollContainer.new()
 	_scroll.custom_minimum_size = Vector2(0.0, 180.0)
@@ -328,6 +356,52 @@ func _paste_program() -> void:
 	program_changed.emit()
 	if _step_label != null:
 		_step_label.text = "已粘贴 %d 个模块；点「开始自动」运行。" % _clipboard_program.size()
+
+
+func _refresh_templates() -> void:
+	if _template_option == null:
+		return
+	var current := _template_option.get_item_text(_template_option.selected) if _template_option.item_count > 0 else ""
+	_template_option.clear()
+	for name_value in BehaviorTemplateStore.list_templates():
+		_template_option.add_item(name_value)
+	if _template_option.item_count > 0:
+		var selected := 0
+		for index in _template_option.item_count:
+			if _template_option.get_item_text(index) == current:
+				selected = index
+		_template_option.select(selected)
+
+
+func _save_template() -> void:
+	if _pig == null or _pig.behavior_program.is_empty():
+		return
+	var template_name := _template_name.text.strip_edges() if _template_name != null else ""
+	if template_name.is_empty():
+		template_name = _pig.display_name
+	if BehaviorTemplateStore.save_template(template_name, _pig.behavior_program):
+		_refresh_templates()
+		if _step_label != null:
+			_step_label.text = "已保存行为模板：%s" % template_name
+
+
+func _load_template() -> void:
+	if _pig == null or _template_option == null or _template_option.item_count <= 0:
+		return
+	var template_name := _template_option.get_item_text(_template_option.selected)
+	var modules := BehaviorTemplateStore.load_template(template_name)
+	if modules.is_empty():
+		return
+	_pig.behavior_program.clear()
+	for module in modules:
+		_pig.behavior_program.append(module.duplicate(true))
+	_pig.behavior_running = false
+	_pig.behavior_module_index = 0
+	_pig.behavior_area_index = 0
+	_refresh()
+	program_changed.emit()
+	if _step_label != null:
+		_step_label.text = "已载入模板：%s（%d 个模块）" % [template_name, modules.size()]
 
 
 func _delete_module(index: int) -> void:

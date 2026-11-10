@@ -69,6 +69,43 @@ static func list_slots() -> Array[String]:
 	return out
 
 
+static func slot_exists(slot_id: String) -> bool:
+	return DirAccess.dir_exists_absolute(slot_path(slot_id))
+
+
+static func rename_slot(old_id: String, new_id: String) -> bool:
+	var clean := new_id.strip_edges()
+	if (
+		old_id.is_empty() or clean.is_empty() or old_id == clean
+		or clean == "main" or clean.contains("/") or clean.contains("\\")
+		or clean == "." or clean == ".."
+	):
+		return false
+	var old_path := slot_path(old_id)
+	var new_path := slot_path(clean)
+	if not DirAccess.dir_exists_absolute(old_path):
+		return false
+	if DirAccess.dir_exists_absolute(new_path):
+		return false
+	if DirAccess.rename_absolute(old_path, new_path) != OK:
+		return false
+	if current_slot() == old_id:
+		set_current_slot(clean)
+	return true
+
+
+static func delete_slot(slot_id: String) -> bool:
+	if slot_id.is_empty() or slot_id == "main":
+		return false
+	var path := slot_path(slot_id)
+	if not DirAccess.dir_exists_absolute(path):
+		return false
+	_remove_dir_recursive(path)
+	if current_slot() == slot_id:
+		set_current_slot("main")
+	return not DirAccess.dir_exists_absolute(path)
+
+
 ## 创建新槽位（不覆盖任何已有目录），并设为当前槽。
 static func create_slot(prefix: String = "slot") -> String:
 	var base := prefix.strip_edges()

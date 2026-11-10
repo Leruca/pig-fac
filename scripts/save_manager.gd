@@ -116,10 +116,27 @@ func save_game() -> Dictionary:
 		return {"ok": false, "message": "写入 global.json 失败。"}
 	persist_seed(manager.get_seed())
 	manager.clear_dirty()
+	_capture_thumbnail()
 	return {
 		"ok": true,
 		"message": "已保存 %d 个区块（%d 删除/回归，%d 只猪）。" % [written, deleted, main.pigs.size()],
 	}
+
+
+func _capture_thumbnail() -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	var viewport := main.get_viewport() if main != null else null
+	if viewport == null:
+		return
+	var texture := viewport.get_texture()
+	if texture == null:
+		return
+	var image := texture.get_image()
+	if image == null or image.is_empty():
+		return
+	image.resize(320, 200, Image.INTERPOLATE_BILINEAR)
+	image.save_png(SavePaths.root() + "/thumbnail.png")
 
 
 func load_game() -> Dictionary:

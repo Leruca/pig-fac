@@ -63,6 +63,9 @@ const MACHINE_SIZES := {
 	"pig_generator": 2,
 	"meat_storage": 3,
 }
+const PROCESSOR_TYPES := ["roller", "press", "assembler"]
+const MACHINE_SLOT_OUTPUT := 3
+const MACHINE_SLOT_COUNT := 4
 const MACHINE_TEXTURES := {
 	"roller": "res://assets/roller.svg",
 	"press": "res://assets/press.svg",
@@ -974,6 +977,10 @@ func place_machine(cell: Vector2i, machine_type: String) -> Dictionary:
 		"output": {},
 		"power_accum": 0.0,
 	}
+	if PROCESSOR_TYPES.has(machine_type):
+		var inventory := Inventory.new(MACHINE_SLOT_COUNT)
+		data["inventory"] = inventory
+		_bind_container_dirty(root, inventory)
 	machines[root] = data
 	_register_machine_cells(root, size)
 	for footprint_cell in _footprint_cells(root, size):
@@ -999,6 +1006,8 @@ func remove_machine(cell: Vector2i) -> bool:
 		return false
 	var data: Dictionary = machines.get(root, {})
 	var size := int(data.get("size", 1))
+	if data.has("inventory"):
+		_unbind_container_dirty(root)
 	_unregister_machine_cells(root)
 	machines.erase(root)
 	for footprint_cell in _footprint_cells(root, size):
@@ -1011,34 +1020,194 @@ func get_machine_type(cell: Vector2i) -> String:
 	return str(get_machine(cell).get("type", ""))
 
 
+## 鼠标悬停/状态图例用的短文本。
+func machine_status_text(cell: Vector2i) -> String:
+	if has_furnace(cell):
+		var furnace := get_furnace(cell)
+		var furnace_inventory: Inventory = furnace.get("inventory")
+		if furnace_inventory != null and not furnace_inventory.get_slot(FURNACE_SLOT_OUTPUT).is_empty():
+			return "熔炉：产物就绪"
+		if float(furnace.get("burn_remaining", 0.0)) > 0.0:
+			return "熔炉：燃烧中"
+		return "熔炉：空闲（缺矿石/燃料）"
+	if not has_machine(cell):
+		return ""
+	var root := get_machine_root(cell)
+	var machine := get_machine(root)
+	var machine_type := str(machine.get("type", ""))
+	var display := str(MACHINE_TYPES.get(machine_type, "机器"))
+	if machine_type == "pig_generator":
+		if (machine.get("pig", {}) as Dictionary).is_empty():
+			return "%s：空闲（缺猪）" % display
+		return "%s：发电中 %d / %d" % [
+			display,
+			int(float(machine.get("power", 0.0))),
+			int(GENERATOR_POWER_MAX),
+		]
+	if machine_type == "meat_storage":
+		if not (machine.get("output", {}) as Dictionary).is_empty():
+			return "%s：鲜肉就绪" % display
+		if (machine.get("pig", {}) as Dictionary).is_empty():
+			return "%s：空闲（缺猪）" % display
+		if get_power_near(root) < MEAT_POWER_COST:
+			return "%s：缺电（需要 %d）" % [display, int(MEAT_POWER_COST)]
+		return "%s：加工中" % display
+	var inventory := get_machine_inventory(root)
+	if inventory != null:
+		if not inventory.get_slot(MACHINE_SLOT_OUTPUT).is_empty():
+			return "%s：产物就绪" % display
+		for recipe in PROCESSING_RECIPES.get(machine_type, []):
+			if can_machine_craft(root, recipe):
+				return "%s：可加工" % display
+		return "%s：缺料或输出满" % display
+	return display
+
+
 func get_processing_recipes(machine_type: String) -> Array:
 	return PROCESSING_RECIPES.get(machine_type, [])
 
 
 ## 手摇加工一次：直接从操作者背包扣材料、把产物放回背包。
-func process_machine(cell: Vector2i, inventory: Inventory) -> Dictionary:
+func get_machine_inventory(cell: Vector2i) -> Inventory:
+	var machine := get_machine(cell)
+	return machine.get("inventory") as Inventory
+
+
+func _machine_input_has(inventory: Inventory, ingredients: Dictionary) -> bool:
+	if inventory == null:
+		return false
+	for item_id in ingredients.keys():
+		var needed := int(ingredients[item_id])
+		var total := 0
+		for index in MACHINE_SLOT_OUTPUT:
+			var slot := inventory.get_slot(index)
+			if str(slot.get("item_id", "")) == str(item_id):
+				total += int(slot.get("count", 0))
+		if total < needed:
+			return false
+	return true
+
+
+func _machine_remove_ingredients(inventory: Inventory, ingredients: Dictionary) -> void:
+	for item_id in ingredients.keys():
+		var remaining := int(ingredients[item_id])
+		for index in MACHINE_SLOT_OUTPUT:
+			if remaining <= 0:
+				break
+			var slot := inventory.get_slot(index)
+			if str(slot.get("item_id", "")) != str(item_id):
+				continue
+			var count := int(slot.get("count", 0))
+			var removed := mini(count, remaining)
+			inventory.remove_from_slot(index, removed)
+			remaining -= removed
+
+
+func _machine_output_accepts(inventory: Inventory, item_id: String, amount: int) -> bool:
+	if inventory == null or item_id.is_empty():
+		return false
+	var slot := inventory.get_slot(MACHINE_SLOT_OUTPUT)
+	if slot.is_empty():
+		return true
+	if str(slot.get("item_id", "")) != item_id:
+		return false
+	return int(slot.get("count", 0)) + amount <= ItemDB.get_max_stack(item_id)
+
+
+func can_machine_craft(cell: Vector2i, recipe: Dictionary) -> bool:
+	var inventory := get_machine_inventory(cell)
+	if inventory == null:
+		return false
+	var ingredients: Dictionary = recipe.get("ingredients", {})
+	if not _machine_input_has(inventory, ingredients):
+		return false
+	return _machine_output_accepts(
+		inventory,
+		str(recipe.get("output", "")),
+		int(recipe.get("output_amount", 1))
+	)
+
+
+func craft_machine_recipe(cell: Vector2i, recipe: Dictionary) -> Dictionary:
+	if not can_machine_craft(cell, recipe):
+		return {"ok": false, "reason": "输入槽材料不足或输出槽已满。"}
+	var inventory := get_machine_inventory(cell)
+	if inventory == null:
+		return {}
+	_machine_remove_ingredients(inventory, recipe.get("ingredients", {}))
+	var output_id := str(recipe.get("output", ""))
+	var output_amount := int(recipe.get("output_amount", 1))
+	_add_to_slot(inventory, MACHINE_SLOT_OUTPUT, output_id, output_amount)
+	mark_dirty(cell)
+	return {
+		"ok": true,
+		"output": output_id,
+		"output_amount": output_amount,
+	}
+
+
+func craft_machine(cell: Vector2i) -> Dictionary:
 	var machine := get_machine(cell)
 	var machine_type := str(machine.get("type", ""))
 	var recipes: Array = PROCESSING_RECIPES.get(machine_type, [])
-	if recipes.is_empty():
-		return {}
 	for recipe_value in recipes:
 		var recipe: Dictionary = recipe_value
-		if not Crafting.can_craft(inventory, recipe):
+		if can_machine_craft(cell, recipe):
+			return craft_machine_recipe(cell, recipe)
+	return {"ok": false, "reason": "输入槽材料不足或输出槽已满。"}
+
+
+## 从操作者背包把配方材料装入机器输入槽；返回是否至少装入/已经可加工。
+func auto_load_machine(cell: Vector2i, bag: Inventory) -> bool:
+	var machine := get_machine(cell)
+	var machine_type := str(machine.get("type", ""))
+	var inventory := get_machine_inventory(cell)
+	if inventory == null or bag == null:
+		return false
+	var recipes: Array = PROCESSING_RECIPES.get(machine_type, [])
+	for recipe_value in recipes:
+		var recipe: Dictionary = recipe_value
+		if can_machine_craft(cell, recipe):
+			return true
+		var ingredients: Dictionary = recipe.get("ingredients", {})
+		var can_load := true
+		for item_id in ingredients.keys():
+			if bag.get_total_count(str(item_id)) < int(ingredients[item_id]):
+				can_load = false
+				break
+		if not can_load:
 			continue
-		var output_id := str(recipe.get("output", ""))
-		var output_amount := int(recipe.get("output_amount", 1))
-		if not inventory.can_add_item(output_id, output_amount):
-			return {"ok": false, "reason": "背包空间不足，产物需要 %d 格。" % output_amount}
-		if not Crafting.craft(inventory, recipe):
-			continue
-		mark_dirty(cell)
-		return {
-			"ok": true,
-			"output": output_id,
-			"output_amount": output_amount,
-		}
-	return {"ok": false, "reason": "材料不足或输入物品不匹配。"}
+		var loaded_any := false
+		for item_id in ingredients.keys():
+			var bag_index := -1
+			for index in bag.slot_count:
+				if str(bag.get_slot(index).get("item_id", "")) == str(item_id):
+					bag_index = index
+					break
+			var input_index := -1
+			for index in MACHINE_SLOT_OUTPUT:
+				if inventory.get_slot(index).is_empty():
+					input_index = index
+					break
+			if bag_index < 0 or input_index < 0:
+				can_load = false
+				break
+			if bag.move_stack_to(inventory, bag_index, input_index):
+				loaded_any = true
+		if loaded_any and can_machine_craft(cell, recipe):
+			return true
+	return false
+
+
+func process_machine(cell: Vector2i, inventory: Inventory) -> Dictionary:
+	var machine := get_machine(cell)
+	var machine_type := str(machine.get("type", ""))
+	if not PROCESSOR_TYPES.has(machine_type):
+		return {}
+	if get_machine_inventory(cell) == null:
+		return {}
+	auto_load_machine(cell, inventory)
+	return craft_machine(cell)
 
 
 func _advance_machines(delta: float) -> void:
@@ -1157,6 +1326,14 @@ func remove_pig_from_machine(cell: Vector2i, inventory: Inventory) -> bool:
 
 func collect_machine_output(cell: Vector2i, inventory: Inventory) -> bool:
 	var machine := get_machine(cell)
+	var machine_inventory := get_machine_inventory(cell)
+	if machine_inventory != null:
+		if machine_inventory.get_slot(MACHINE_SLOT_OUTPUT).is_empty():
+			return false
+		if not InventoryTransfer.shift_to_inventory(machine_inventory, inventory, MACHINE_SLOT_OUTPUT):
+			return false
+		mark_dirty(cell)
+		return true
 	var output: Dictionary = machine.get("output", {})
 	if output.is_empty():
 		return false
