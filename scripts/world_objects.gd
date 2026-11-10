@@ -184,6 +184,7 @@ var mature_area_guard: Callable = Callable()
 var worldgen_seed: int = 0
 var _last_canvas_transform := Transform2D.IDENTITY
 var _canvas_transform_ready := false
+var _status_redraw_accum := 0.0
 var worldgen_config: WorldGenConfig = null
 ## 由 ChunkManager 注入：把"待落盘的脏格"交给它（世界坐标）。
 var dirty_sink: Callable = Callable()
@@ -323,6 +324,11 @@ func _process(delta: float) -> void:
 	_advance_nests(delta)
 	_advance_furnaces(delta)
 	_advance_machines(delta)
+	if not furnaces.is_empty() or not machines.is_empty():
+		_status_redraw_accum += delta
+		if _status_redraw_accum >= 0.5:
+			_status_redraw_accum = 0.0
+			queue_redraw()
 	if _blocks_dirty or _ores_dirty:
 		_blocks_dirty = false
 		_ores_dirty = false
@@ -1983,6 +1989,18 @@ func _draw_furnace(cell: Vector2i) -> void:
 		Color("#D0D1C8"),
 		2.0
 	)
+	var furnace_inventory: Inventory = data.get("inventory")
+	var output_ready := (
+		furnace_inventory != null
+		and not furnace_inventory.get_slot(FURNACE_SLOT_OUTPUT).is_empty()
+	)
+	var status := Color("#8C9880")
+	if output_ready:
+		status = Color("#8ED56B")
+	elif burning:
+		status = Color("#E0B23C")
+	draw_circle(origin + Vector2(8.0, 8.0), 5.0, Color(0.05, 0.07, 0.04, 0.85))
+	draw_circle(origin + Vector2(8.0, 8.0), 3.2, status)
 
 
 func _draw_machine(cell: Vector2i) -> void:
@@ -1996,6 +2014,29 @@ func _draw_machine(cell: Vector2i) -> void:
 	if texture != null:
 		draw_texture_rect(texture, Rect2(origin, Vector2.ONE * size), false)
 	draw_rect(Rect2(origin, Vector2.ONE * size), Color("#3F443C"), false, 1.6)
+	if machine_type == "pig_generator":
+		var gen_has_pig := not (machine.get("pig", {}) as Dictionary).is_empty()
+		draw_circle(origin + Vector2(8.0, 8.0), 5.0, Color(0.05, 0.07, 0.04, 0.85))
+		draw_circle(
+			origin + Vector2(8.0, 8.0),
+			3.2,
+			Color("#8ED56B") if gen_has_pig else Color("#D06A5A")
+		)
+	elif machine_type == "meat_storage":
+		var meat_has_pig := not (machine.get("pig", {}) as Dictionary).is_empty()
+		var has_output := not (machine.get("output", {}) as Dictionary).is_empty()
+		var has_power := get_power_near(cell) >= MEAT_POWER_COST
+		var status := Color("#8C9880")
+		if has_output:
+			status = Color("#8ED56B")
+		elif not meat_has_pig:
+			status = Color("#8C9880")
+		elif not has_power:
+			status = Color("#D06A5A")
+		else:
+			status = Color("#E0B23C")
+		draw_circle(origin + Vector2(8.0, 8.0), 5.0, Color(0.05, 0.07, 0.04, 0.85))
+		draw_circle(origin + Vector2(8.0, 8.0), 3.2, status)
 	if machine_type == "pig_generator" and not (machine.get("pig", {}) as Dictionary).is_empty():
 		var ratio := clampf(float(machine.get("power", 0.0)) / GENERATOR_POWER_MAX, 0.0, 1.0)
 		draw_rect(

@@ -37,6 +37,7 @@ var _picker_caption: Label
 var _picker_grid: GridContainer
 var _picker_mode := ""
 var _picker_module := -1
+var _clipboard_program: Array[Dictionary] = []
 
 
 func _ready() -> void:
@@ -139,6 +140,14 @@ func _build_layout() -> void:
 	var clear_button := _make_button("清空", 54.0)
 	clear_button.pressed.connect(_clear_program)
 	header.add_child(clear_button)
+	var copy_button := _make_button("复制", 54.0)
+	copy_button.tooltip_text = "复制当前猪的整套行为程序"
+	copy_button.pressed.connect(_copy_program)
+	header.add_child(copy_button)
+	var paste_button := _make_button("粘贴", 54.0)
+	paste_button.tooltip_text = "把复制的程序粘贴到当前猪"
+	paste_button.pressed.connect(_paste_program)
+	header.add_child(paste_button)
 
 	var subtitle := _make_label("拖动排序 · 自动时锁定手动操作 · 每 1 秒互动一次", 11, UIStyle.TEXT_MUTED)
 	content.add_child(subtitle)
@@ -294,6 +303,31 @@ func _clear_program() -> void:
 	_pig.behavior_running = false
 	_refresh()
 	program_changed.emit()
+
+
+func _copy_program() -> void:
+	if _pig == null or _pig.behavior_program.is_empty():
+		return
+	_clipboard_program.clear()
+	for module in _pig.behavior_program:
+		_clipboard_program.append(module.duplicate(true))
+	if _step_label != null:
+		_step_label.text = "已复制 %d 个模块，可切换到另一只猪粘贴。" % _clipboard_program.size()
+
+
+func _paste_program() -> void:
+	if _pig == null or _clipboard_program.is_empty():
+		return
+	_pig.behavior_program.clear()
+	for module in _clipboard_program:
+		_pig.behavior_program.append(module.duplicate(true))
+	_pig.behavior_running = false
+	_pig.behavior_module_index = 0
+	_pig.behavior_area_index = 0
+	_refresh()
+	program_changed.emit()
+	if _step_label != null:
+		_step_label.text = "已粘贴 %d 个模块；点「开始自动」运行。" % _clipboard_program.size()
 
 
 func _delete_module(index: int) -> void:

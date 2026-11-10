@@ -31,6 +31,7 @@ func _ready() -> void:
 	_test_machine_ui()
 	_test_machine_behavior()
 	_test_placement_preview()
+	_test_behavior_templates()
 	_test_pause_slots()
 
 	if _failures.is_empty():
@@ -538,6 +539,22 @@ func _test_placement_preview() -> void:
 		var text: String = _main._placement_preview.hint_text()
 		_check(text.contains("2×2") and text.contains("左上角"), "furnace preview should explain 2x2 top-left")
 		pig.inventory.clear_selection()
+
+
+func _test_behavior_templates() -> void:
+	var pig_a: Pig = _main.pigs[0]
+	var pig_b: Pig = _main.pigs[1]
+	_main.hud.open_behavior(pig_a)
+	_main.hud.behavior_ui._clear_program()
+	_main.hud.behavior_ui._add_module("move")
+	_main.hud.behavior_ui._copy_program()
+	_main.hud.open_behavior(pig_b)
+	_main.hud.behavior_ui._clear_program()
+	_main.hud.behavior_ui._paste_program()
+	_check(pig_b.behavior_program.size() == 1, "paste should copy behavior modules to another pig")
+	_check(str(pig_b.behavior_program[0].get("type", "")) == "move", "pasted module type should match")
+	_main.hud.close_behavior()
+	pig_b.behavior_program.clear()
 
 
 func _test_pause_slots() -> void:
